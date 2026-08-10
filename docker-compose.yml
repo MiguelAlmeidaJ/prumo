@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: prumo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: prumo
+      POSTGRES_USER: prumo
+      POSTGRES_PASSWORD: prumo
+    ports:
+      - "5432:5432"
+    volumes:
+      - prumo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prumo -d prumo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: prumo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - prumo_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: prumo-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  prumo_postgres_data:
+  prumo_redis_data:

@@ -1,0 +1,30 @@
+{
+  "name": "prumo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.16.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "audit:security": "node scripts/dependency-audit.mjs",
+    "format": "prettier --write .",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
+    "db:generate": "pnpm --filter @prumo/database prisma:generate",
+    "db:migrate": "pnpm --filter @prumo/database prisma:migrate",
+    "db:seed": "pnpm --filter @prumo/database prisma:seed",
+    "db:seed:reference": "pnpm --filter @prumo/database prisma:seed:reference",
+    "db:seed:demo": "pnpm --filter @prumo/database prisma:seed:demo",
+    "db:bootstrap-admin": "pnpm --filter @prumo/database prisma:bootstrap-admin",
+    "db:studio": "pnpm --filter @prumo/database prisma:studio"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "turbo": "^2.10.6",
+    "typescript": "^5.9.3"
+  }
+}

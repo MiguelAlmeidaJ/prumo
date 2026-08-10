@@ -1,0 +1,63 @@
+# Dependências e caches
+node_modules/
+.pnpm-store/
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# Builds e cobertura
+.next/
+dist/
+dist-*/
+build/
+out/
+web-build/
+coverage/
+.expo/
+
+# Ambientes, segredos e credenciais
+.env
+.env.*
+!.env.example
+secrets/
+**/secrets/
+credentials.json
+**/credentials.json
+google-services.json
+**/google-services.json
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+id_rsa
+id_ed25519
+
+# Dados locais e artefatos operacionais
+uploads/
+**/uploads/
+var/uploads/
+logs/
+**/logs/
+*.log
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
+dump.sql
+dump-*.sql
+backup.sql
+backup-*.sql
+
+# IDE e sistema operacional
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo

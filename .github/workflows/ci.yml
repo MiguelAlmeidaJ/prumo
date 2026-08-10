@@ -1,0 +1,159 @@
+name: Integração contínua
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+  APP_ENV: test
+  DATABASE_URL: postgresql://prumo:prumo@localhost:5432/prumo_test?schema=public
+  REDIS_URL: redis://localhost:6379
+  JWT_ACCESS_SECRET: ci-access-token-secret-with-at-least-forty-eight-characters-2026
+  JWT_REFRESH_SECRET: ci-refresh-token-secret-with-at-least-forty-eight-characters-2026
+  CORS_ORIGINS: http://localhost:3000
+  APP_WEB_URL: http://localhost:3000
+  API_URL: http://localhost:3333/api
+  NEXT_PUBLIC_API_URL: http://localhost:3333/api
+  EXPO_PUBLIC_API_URL: http://localhost:3333/api
+  QUEUE_ENABLED: "false"
+  AUTH_RATE_LIMIT_ENABLED: "false"
+  SWAGGER_ENABLED: "false"
+
+jobs:
+  contratos:
+    name: Contratos compartilhados
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @prumo/contracts build
+      - run: pnpm --filter @prumo/contracts typecheck
+      - run: pnpm --filter @prumo/contracts test
+
+  banco:
+    name: Prisma e pacote de banco
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @prumo/database exec prisma validate
+      - run: pnpm --filter @prumo/database prisma:generate
+      - run: pnpm --filter @prumo/database build
+      - run: pnpm --filter @prumo/database typecheck
+      - run: pnpm --filter @prumo/database test
+
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: prumo
+          POSTGRES_PASSWORD: prumo
+          POSTGRES_DB: prumo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prumo -d prumo_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @prumo/database prisma:generate
+      - run: pnpm --filter @prumo/database exec prisma migrate deploy
+      - run: pnpm --filter @prumo/api build
+      - run: pnpm --filter @prumo/api typecheck
+      - run: pnpm --filter @prumo/api lint
+      - run: pnpm --filter @prumo/api test
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @prumo/web build
+      - run: pnpm --filter @prumo/web typecheck
+      - run: pnpm --filter @prumo/web lint
+      - run: pnpm --filter @prumo/web test
+
+  mobile:
+    name: Mobile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @prumo/mobile typecheck
+      - run: pnpm --filter @prumo/mobile lint
+      - run: pnpm --filter @prumo/mobile test
+
+  seguranca:
+    name: Auditoria de dependências
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit:security

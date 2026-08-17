@@ -14,11 +14,13 @@ out/
 web-build/
 coverage/
 .expo/
+packages/database/src/generate/
 
 # Ambientes, segredos e credenciais
 .env
 .env.*
 !.env.example
+!.env.production.example
 secrets/
 **/secrets/
 credentials.json

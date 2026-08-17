@@ -1,0 +1,113 @@
+name: prumo-production
+
+services:
+  api:
+    image: ${PRUMO_API_IMAGE:-prumo-api:production}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: ${API_MEMORY_LIMIT:-512m}
+    cpus: ${API_CPU_LIMIT:-1.0}
+    expose:
+      - "3333"
+    environment:
+      NODE_ENV: production
+      APP_ENV: production
+      API_PORT: 3333
+      NODE_OPTIONS: --max-old-space-size=384
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL obrigatoria}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL obrigatoria}
+      QUEUE_ENABLED: ${QUEUE_ENABLED:-true}
+      QUEUE_MAX_ATTEMPTS: ${QUEUE_MAX_ATTEMPTS:-5}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET obrigatoria}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET obrigatoria}
+      APP_WEB_URL: https://prumo.anoar.com.br
+      API_URL: https://aprumo.anoar.com.br/api
+      CORS_ORIGINS: https://prumo.anoar.com.br
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST obrigatoria}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER obrigatoria}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD obrigatoria}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM obrigatoria}
+      EMAIL_TIMEOUT_MS: ${EMAIL_TIMEOUT_MS:-10000}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_REGION: ${STORAGE_REGION:?STORAGE_REGION obrigatoria}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?STORAGE_BUCKET obrigatoria}
+      STORAGE_FORCE_PATH_STYLE: ${STORAGE_FORCE_PATH_STYLE:-false}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+      STORAGE_SIGNED_URL_TTL_SECONDS: ${STORAGE_SIGNED_URL_TTL_SECONDS:-300}
+      STORAGE_SERVER_SIDE_ENCRYPTION: ${STORAGE_SERVER_SIDE_ENCRYPTION:-none}
+      STORAGE_KMS_KEY_ID: ${STORAGE_KMS_KEY_ID:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN obrigatorio}
+      SWAGGER_ENABLED: "false"
+      SWAGGER_RESTRICTED: "false"
+    networks: [internal]
+
+  web:
+    image: ${PRUMO_WEB_IMAGE:-prumo-web:production}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://aprumo.anoar.com.br/api
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+      - /app/apps/web/.next/cache:size=64m,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: ${WEB_MEMORY_LIMIT:-384m}
+    cpus: ${WEB_CPU_LIMIT:-0.75}
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NODE_OPTIONS: --max-old-space-size=256
+      API_URL: http://api:3333/api
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [internal]
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    init: true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL obrigatorio}
+    volumes:
+      - ./.ops/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - prumo_caddy_data:/data
+      - prumo_caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  prumo_caddy_data:
+  prumo_caddy_config:

@@ -9,7 +9,7 @@ import {
   ProcessStageStatus,
   ProcessStageType,
   StudentDocumentType,
-} from "@prisma/client";
+} from "@prumo/database";
 import { AuditService } from "../schedule/audit.service";
 
 export const THEORETICAL_MINUTES = 45 * 60;

@@ -10,13 +10,12 @@ import {
   LessonChangeRequestStatus,
   LessonStatus,
   ProcessDocumentStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { PrismaService } from "../database/prisma.service";
 import { PracticalLessonsService } from "../schedule/practical-lessons.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import {
   CompleteDocumentUploadDto,
   CreateDocumentUploadDto,
@@ -90,6 +89,7 @@ export class MobileStudentService {
     private readonly prisma: PrismaService,
     private readonly access: MobileAccessService,
     private readonly practicalLessons: PracticalLessonsService,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   async home(user: AuthenticatedUser) {
@@ -1007,12 +1007,13 @@ export class MobileStudentService {
         tenantId: user.tenantId,
         userId: user.id,
         studentId: student.id,
-        status: DocumentUploadStatus.PENDING,
-        expiresAt: { gt: new Date() },
       },
     });
-    if (!session)
+    if (!session || session.expiresAt <= new Date())
       throw new NotFoundException("URL de upload inválida ou expirada.");
+    if (session.status !== DocumentUploadStatus.PENDING) {
+      throw new ConflictException("Este upload já foi processado.");
+    }
     const content = Buffer.from(input.contentBase64, "base64");
     if (!content.length || content.length > 10 * 1024 * 1024) {
       throw new BadRequestException("Arquivo vazio ou maior que 10 MB.");
@@ -1043,15 +1044,27 @@ export class MobileStudentService {
         : session.mimeType === "image/png"
           ? "png"
           : "jpg";
-    const storageKey = `${user.tenantId}/${student.id}/${randomUUID()}.${extension}`;
-    const baseDir =
-      process.env.MOBILE_UPLOAD_DIR ??
-      process.env.UPLOAD_DIR ??
-      join(process.cwd(), "var", "uploads");
-    const destination = join(baseDir, ...storageKey.split("/"));
+    const previous = session.documentId
+      ? await this.prisma.studentDocument.findFirst({
+          where: {
+            id: session.documentId,
+            tenantId: user.tenantId,
+            studentId: student.id,
+          },
+          select: { storageKey: true },
+        })
+      : null;
+    let storageKey: string | undefined;
     try {
-      await mkdir(dirname(destination), { recursive: true });
-      await writeFile(destination, content, { flag: "wx" });
+      storageKey = await this.storage.putDocument({
+        tenantId: user.tenantId,
+        studentId: student.id,
+        actorUserId: user.id,
+        fileName: session.fileName,
+        contentType: session.mimeType,
+        extension,
+        body: content,
+      });
       const result = await this.prisma.$transaction(async (tx) => {
         const document = session.documentId
           ? await tx.studentDocument.update({
@@ -1095,8 +1108,22 @@ export class MobileStudentService {
             uploadedAt: new Date(),
           },
         });
+        await tx.auditLog.create({
+          data: {
+            tenantId: user.tenantId,
+            entityType: "StudentDocument",
+            entityId: document.id,
+            action: "DOCUMENT_UPLOADED",
+            actorUserId: user.id,
+          },
+        });
         return document;
       });
+      if (previous?.storageKey && previous.storageKey !== storageKey) {
+        await this.storage
+          .deleteDocument(user.tenantId, previous.storageKey)
+          .catch(() => undefined);
+      }
       return {
         id: result.id,
         type: result.type,
@@ -1105,7 +1132,9 @@ export class MobileStudentService {
       };
     } catch (error) {
       await Promise.allSettled([
-        unlink(destination),
+        storageKey
+          ? this.storage.deleteDocument(user.tenantId, storageKey)
+          : Promise.resolve(),
         this.prisma.documentUploadSession.updateMany({
           where: {
             id: session.id,
@@ -1129,6 +1158,7 @@ export class MobileStudentService {
         storageKey: { not: null },
       },
       select: {
+        id: true,
         storageKey: true,
         fileName: true,
         fileMimeType: true,
@@ -1136,14 +1166,25 @@ export class MobileStudentService {
     });
     if (!document?.storageKey)
       throw new NotFoundException("Arquivo não encontrado.");
-    const baseDir =
-      process.env.MOBILE_UPLOAD_DIR ??
-      process.env.UPLOAD_DIR ??
-      join(process.cwd(), "var", "uploads");
+    const signed = await this.storage.signedDownloadUrl({
+      tenantId: user.tenantId,
+      key: document.storageKey,
+      fileName: document.fileName ?? "documento",
+      contentType: document.fileMimeType ?? "application/octet-stream",
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId: user.tenantId,
+        entityType: "StudentDocument",
+        entityId: document.id,
+        action: "DOCUMENT_FILE_ACCESSED",
+        actorUserId: user.id,
+      },
+    });
     return {
-      path: join(baseDir, ...document.storageKey.split("/")),
       fileName: document.fileName ?? "documento",
       mimeType: document.fileMimeType ?? "application/octet-stream",
+      ...signed,
     };
   }
 

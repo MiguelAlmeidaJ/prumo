@@ -11,6 +11,7 @@ import {
   BillingCycle,
   DomainEventStatus,
   DomainEventType,
+  isPrismaKnownRequestError,
   LessonStatus,
   MembershipRole,
   NotificationChannel,
@@ -23,7 +24,7 @@ import {
   SupportSessionStatus,
   TenantStatus,
   TenantSubscriptionStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { compare, hash } from "bcrypt";
 import { PrismaService } from "../database/prisma.service";
 import { AuthService } from "../auth/auth.service";
@@ -44,6 +45,7 @@ import type {
   EndSupportSessionDto,
   PlanListQueryDto,
   StartSupportSessionDto,
+  SubscriptionActionDto,
   SubscriptionListQueryDto,
   SupportSessionQueryDto,
   TenantListQueryDto,
@@ -113,6 +115,39 @@ function normalizeSlug(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+const CONTRACT_VALUE_STATUSES: TenantSubscriptionStatus[] = [
+  TenantSubscriptionStatus.TRIALING,
+  TenantSubscriptionStatus.ACTIVE,
+];
+
+const CURRENT_SUBSCRIPTION_STATUSES: TenantSubscriptionStatus[] = [
+  ...CONTRACT_VALUE_STATUSES,
+  TenantSubscriptionStatus.SUSPENDED,
+];
+
+function billingCycleMonths(cycle: BillingCycle): number {
+  switch (cycle) {
+    case BillingCycle.QUARTERLY:
+      return 3;
+    case BillingCycle.SEMIANNUAL:
+      return 6;
+    case BillingCycle.ANNUAL:
+      return 12;
+    default:
+      return 1;
+  }
+}
+
+function periodEnd(startsAt: Date, cycle: BillingCycle): Date {
+  const end = new Date(startsAt);
+  end.setUTCMonth(end.getUTCMonth() + billingCycleMonths(cycle));
+  return end;
+}
+
+function monthlyEquivalent(priceCents: number, cycle: BillingCycle): number {
+  return Math.round(priceCents / billingCycleMonths(cycle));
 }
 
 @Injectable()
@@ -470,6 +505,7 @@ export class PlatformService {
                   ? TenantSubscriptionStatus.TRIALING
                   : TenantSubscriptionStatus.ACTIVE,
               billingCycle: BillingCycle.MANUAL,
+              contractedPriceCents: plan.monthlyPriceCents,
               startsAt: now,
               trialEndsAt,
               currentPeriodStartsAt: now,
@@ -507,7 +543,7 @@ export class PlatformService {
       return created;
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
+        isPrismaKnownRequestError(error) &&
         error.code === "P2002"
       ) {
         throw new ConflictException(
@@ -557,7 +593,7 @@ export class PlatformService {
       return after;
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
+        isPrismaKnownRequestError(error) &&
         error.code === "P2002"
       ) {
         throw new ConflictException("Slug ou documento já utilizado.");
@@ -1223,42 +1259,132 @@ export class PlatformService {
   }
 
   async listPlans(query: PlanListQueryDto) {
-    const where: Prisma.PlatformPlanWhereInput = { status: query.status };
-    const [data, total] = await Promise.all([
-      this.prisma.platformPlan.findMany({
-        where,
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          description: true,
-          status: true,
-          monthlyPriceCents: true,
-          annualPriceCents: true,
-          maxUsers: true,
-          maxStudents: true,
-          maxUnits: true,
-          maxStorageBytes: true,
-          features: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: { select: { subscriptions: true } },
-        },
-        orderBy: { name: "asc" },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
-      this.prisma.platformPlan.count({ where }),
-    ]);
-    return pageResult(
-      data.map((plan) => ({
-        ...plan,
-        maxStorageBytes: plan.maxStorageBytes?.toString() ?? null,
-      })),
-      total,
-      query.page,
-      query.pageSize,
+    const where: Prisma.PlatformPlanWhereInput = {
+      status: query.status,
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: "insensitive" } },
+              { code: { contains: query.search, mode: "insensitive" } },
+              {
+                description: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+    const [plans, total, activePlans, currentSubscriptions] = await Promise.all(
+      [
+        this.prisma.platformPlan.findMany({
+          where,
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            description: true,
+            status: true,
+            featured: true,
+            displayOrder: true,
+            defaultBillingCycle: true,
+            monthlyPriceCents: true,
+            annualPriceCents: true,
+            maxUsers: true,
+            maxStudents: true,
+            maxUnits: true,
+            maxInstructors: true,
+            maxVehicles: true,
+            maxStorageBytes: true,
+            features: true,
+            createdAt: true,
+            updatedAt: true,
+            _count: { select: { subscriptions: true } },
+            subscriptions: {
+              where: { status: { in: CURRENT_SUBSCRIPTION_STATUSES } },
+              select: { tenantId: true, status: true },
+            },
+          },
+          orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+        }),
+        this.prisma.platformPlan.count({ where }),
+        this.prisma.platformPlan.count({
+          where: { status: PlatformPlanStatus.ACTIVE },
+        }),
+        this.prisma.tenantSubscription.findMany({
+          where: { status: { in: CONTRACT_VALUE_STATUSES } },
+          select: {
+            tenantId: true,
+            contractedPriceCents: true,
+            billingCycle: true,
+          },
+        }),
+      ],
     );
+    const data = plans.map(({ subscriptions, _count, ...plan }) => ({
+      ...plan,
+      maxStorageBytes: plan.maxStorageBytes?.toString() ?? null,
+      subscriberCount: new Set(subscriptions.map(({ tenantId }) => tenantId))
+        .size,
+      activeSubscriberCount: new Set(
+        subscriptions
+          .filter(({ status }) => CONTRACT_VALUE_STATUSES.includes(status))
+          .map(({ tenantId }) => tenantId),
+      ).size,
+      historicalSubscriptionCount: _count.subscriptions,
+    }));
+    const contractedMonthlyValueCents = currentSubscriptions.reduce(
+      (sum, subscription) =>
+        sum +
+        monthlyEquivalent(
+          subscription.contractedPriceCents,
+          subscription.billingCycle,
+        ),
+      0,
+    );
+    const subscribingTenants = new Set(
+      currentSubscriptions.map(({ tenantId }) => tenantId),
+    ).size;
+    return {
+      ...pageResult(data, total, query.page, query.pageSize),
+      summary: {
+        activePlans,
+        subscribingTenants,
+        contractedMonthlyValueCents,
+        averageTicketCents:
+          subscribingTenants > 0
+            ? Math.round(contractedMonthlyValueCents / subscribingTenants)
+            : 0,
+      },
+    };
+  }
+
+  async getPlan(id: string) {
+    const plan = await this.prisma.platformPlan.findUnique({
+      where: { id },
+      include: {
+        subscriptions: {
+          where: { status: { in: CURRENT_SUBSCRIPTION_STATUSES } },
+          select: { tenantId: true, status: true },
+        },
+      },
+    });
+    if (!plan) throw new NotFoundException("Plano não encontrado.");
+    const { subscriptions, ...fields } = plan;
+    return {
+      ...fields,
+      maxStorageBytes: plan.maxStorageBytes?.toString() ?? null,
+      subscriberCount: new Set(subscriptions.map(({ tenantId }) => tenantId))
+        .size,
+      activeSubscriberCount: new Set(
+        subscriptions
+          .filter(({ status }) => CONTRACT_VALUE_STATUSES.includes(status))
+          .map(({ tenantId }) => tenantId),
+      ).size,
+    };
   }
 
   async createPlan(
@@ -1272,28 +1398,35 @@ export class PlatformService {
         data: {
           ...input,
           code: input.code.trim().toUpperCase(),
+          name: input.name.trim(),
+          description: input.description?.trim(),
           status: input.status ?? PlatformPlanStatus.DRAFT,
+          defaultBillingCycle:
+            input.defaultBillingCycle ?? BillingCycle.MONTHLY,
           maxStorageBytes: input.maxStorageBytes
             ? BigInt(input.maxStorageBytes)
             : undefined,
           features: input.features,
         },
       });
+      const response = {
+        ...plan,
+        maxStorageBytes: plan.maxStorageBytes?.toString() ?? null,
+        subscriberCount: 0,
+        activeSubscriberCount: 0,
+      };
       await this.audit.record({
         platformUserId: actor.id,
         entityType: "PlatformPlan",
         entityId: plan.id,
         action: "PLATFORM_PLAN_CREATED",
         ...requestContext,
-        after: plan,
+        after: response,
       });
-      return {
-        ...plan,
-        maxStorageBytes: plan.maxStorageBytes?.toString() ?? null,
-      };
+      return response;
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
+        isPrismaKnownRequestError(error) &&
         error.code === "P2002"
       ) {
         throw new ConflictException("Código de plano já utilizado.");
@@ -1313,53 +1446,191 @@ export class PlatformService {
       where: { id },
     });
     if (!before) throw new NotFoundException("Plano não encontrado.");
+    const beforeSnapshot = {
+      ...before,
+      maxStorageBytes: before.maxStorageBytes?.toString() ?? null,
+    };
     const after = await this.prisma.platformPlan.update({
       where: { id },
       data: {
         ...input,
+        name: input.name?.trim(),
+        description: input.description?.trim(),
         maxStorageBytes:
           input.maxStorageBytes === undefined
             ? undefined
-            : BigInt(input.maxStorageBytes),
+            : input.maxStorageBytes === null
+              ? null
+              : BigInt(input.maxStorageBytes),
         features: input.features,
       },
     });
+    const response = {
+      ...after,
+      maxStorageBytes: after.maxStorageBytes?.toString() ?? null,
+    };
     await this.audit.record({
       platformUserId: actor.id,
       entityType: "PlatformPlan",
       entityId: id,
       action: "PLATFORM_PLAN_UPDATED",
       ...requestContext,
-      before,
-      after,
+      before: beforeSnapshot,
+      after: response,
     });
-    return {
-      ...after,
-      maxStorageBytes: after.maxStorageBytes?.toString() ?? null,
-    };
+    return this.getPlan(id);
   }
 
   async listSubscriptions(query: SubscriptionListQueryDto) {
     const where: Prisma.TenantSubscriptionWhereInput = {
       tenantId: query.tenantId,
+      planId: query.planId,
       status: query.status,
+      billingCycle: query.billingCycle,
+      ...(query.search
+        ? {
+            tenant: {
+              OR: [
+                { name: { contains: query.search, mode: "insensitive" } },
+                { slug: { contains: query.search, mode: "insensitive" } },
+                { document: { contains: query.search } },
+              ],
+            },
+          }
+        : {}),
     };
-    const [data, total] = await Promise.all([
-      this.prisma.tenantSubscription.findMany({
-        where,
-        include: {
-          tenant: {
-            select: { id: true, name: true, slug: true, status: true },
+    const [data, total, currentSubscriptions, groupedStatuses] =
+      await Promise.all([
+        this.prisma.tenantSubscription.findMany({
+          where,
+          include: {
+            tenant: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                document: true,
+                status: true,
+              },
+            },
+            plan: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                status: true,
+                monthlyPriceCents: true,
+                annualPriceCents: true,
+              },
+            },
           },
-          plan: { select: { id: true, code: true, name: true } },
+          orderBy: { createdAt: "desc" },
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+        }),
+        this.prisma.tenantSubscription.count({ where }),
+        this.prisma.tenantSubscription.findMany({
+          where: { status: { in: CONTRACT_VALUE_STATUSES } },
+          select: { contractedPriceCents: true, billingCycle: true },
+        }),
+        this.prisma.tenantSubscription.groupBy({
+          by: ["status"],
+          _count: true,
+        }),
+      ]);
+    const statusCount = new Map(
+      groupedStatuses.map(({ status, _count }) => [status, _count]),
+    );
+    return {
+      ...pageResult(data, total, query.page, query.pageSize),
+      summary: {
+        activeSubscriptions:
+          statusCount.get(TenantSubscriptionStatus.ACTIVE) ?? 0,
+        trialingSubscriptions:
+          statusCount.get(TenantSubscriptionStatus.TRIALING) ?? 0,
+        suspendedSubscriptions:
+          statusCount.get(TenantSubscriptionStatus.SUSPENDED) ?? 0,
+        contractedMonthlyValueCents: currentSubscriptions.reduce(
+          (sum, subscription) =>
+            sum +
+            monthlyEquivalent(
+              subscription.contractedPriceCents,
+              subscription.billingCycle,
+            ),
+          0,
+        ),
+      },
+    };
+  }
+
+  async getSubscription(id: string) {
+    const subscription = await this.prisma.tenantSubscription.findUnique({
+      where: { id },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            document: true,
+            status: true,
+          },
         },
-        orderBy: { createdAt: "desc" },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
-      this.prisma.tenantSubscription.count({ where }),
-    ]);
-    return pageResult(data, total, query.page, query.pageSize);
+        plan: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            status: true,
+            monthlyPriceCents: true,
+            annualPriceCents: true,
+            maxUsers: true,
+            maxStudents: true,
+            maxUnits: true,
+            maxInstructors: true,
+            maxVehicles: true,
+          },
+        },
+      },
+    });
+    if (!subscription) {
+      throw new NotFoundException("Assinatura não encontrada.");
+    }
+    const [units, users, instructors, activeStudents, history] =
+      await Promise.all([
+        this.prisma.schoolUnit.count({
+          where: { tenantId: subscription.tenantId, active: true },
+        }),
+        this.prisma.membership.count({
+          where: { tenantId: subscription.tenantId, active: true },
+        }),
+        this.prisma.instructor.count({
+          where: { tenantId: subscription.tenantId, status: "ACTIVE" },
+        }),
+        this.prisma.student.count({
+          where: { tenantId: subscription.tenantId, status: "ACTIVE" },
+        }),
+        this.prisma.auditLog.findMany({
+          where: { entityType: "TenantSubscription", entityId: id },
+          select: {
+            id: true,
+            action: true,
+            reason: true,
+            before: true,
+            after: true,
+            createdAt: true,
+            platformUser: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+    return {
+      ...subscription,
+      usage: { units, users, instructors, activeStudents },
+      history,
+    };
   }
 
   async createSubscription(
@@ -1367,43 +1638,81 @@ export class PlatformService {
     actor: AuthenticatedPrincipal,
     requestContext: RequestAuditContext,
   ) {
-    await Promise.all([
-      this.ensureTenant(input.tenantId),
-      this.ensurePlan(input.planId),
+    const [tenant, plan, existing] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: input.tenantId } }),
+      this.prisma.platformPlan.findUnique({ where: { id: input.planId } }),
+      this.prisma.tenantSubscription.findFirst({
+        where: {
+          tenantId: input.tenantId,
+          status: {
+            in: [
+              TenantSubscriptionStatus.DRAFT,
+              ...CURRENT_SUBSCRIPTION_STATUSES,
+            ],
+          },
+        },
+      }),
     ]);
-    const subscription = await this.prisma.tenantSubscription.create({
-      data: {
-        tenantId: input.tenantId,
-        planId: input.planId,
-        status: input.status,
-        billingCycle: input.billingCycle,
-        startsAt: toDate(input.startsAt, "startsAt") as Date,
-        trialEndsAt: toDate(input.trialEndsAt, "trialEndsAt"),
-        currentPeriodStartsAt: toDate(
-          input.currentPeriodStartsAt,
-          "currentPeriodStartsAt",
-        ) as Date,
-        currentPeriodEndsAt: toDate(
-          input.currentPeriodEndsAt,
-          "currentPeriodEndsAt",
-        ) as Date,
-      },
-      include: { plan: true, tenant: true },
+    if (!tenant) throw new NotFoundException("Autoescola não encontrada.");
+    if (!plan) throw new NotFoundException("Plano não encontrado.");
+    if (plan.status !== PlatformPlanStatus.ACTIVE) {
+      throw new ConflictException(
+        "Somente planos ativos podem receber novas assinaturas.",
+      );
+    }
+    if (existing) {
+      throw new ConflictException(
+        "A autoescola já possui uma assinatura em aberto.",
+      );
+    }
+    const startsAt = toDate(input.startsAt, "startsAt") as Date;
+    const endsAt = toDate(input.endsAt, "endsAt");
+    if (endsAt && endsAt < startsAt) {
+      throw new BadRequestException(
+        "A data final deve ser posterior à data de início.",
+      );
+    }
+    const currentPeriodStartsAt =
+      toDate(input.currentPeriodStartsAt, "currentPeriodStartsAt") ?? startsAt;
+    const currentPeriodEndsAt =
+      toDate(input.currentPeriodEndsAt, "currentPeriodEndsAt") ??
+      periodEnd(currentPeriodStartsAt, input.billingCycle);
+    return this.prisma.$transaction(async (transaction) => {
+      const subscription = await transaction.tenantSubscription.create({
+        data: {
+          tenantId: input.tenantId,
+          planId: input.planId,
+          status: input.status ?? TenantSubscriptionStatus.DRAFT,
+          billingCycle: input.billingCycle,
+          contractedPriceCents: input.contractedPriceCents,
+          startsAt,
+          endsAt,
+          trialEndsAt: toDate(input.trialEndsAt, "trialEndsAt"),
+          currentPeriodStartsAt,
+          currentPeriodEndsAt,
+          contractNumber: input.contractNumber?.trim(),
+          notes: input.notes?.trim(),
+        },
+        include: { plan: true, tenant: true },
+      });
+      await transaction.tenant.update({
+        where: { id: input.tenantId },
+        data: { planCode: subscription.plan.code },
+      });
+      await this.audit.record(
+        {
+          platformUserId: actor.id,
+          tenantId: input.tenantId,
+          entityType: "TenantSubscription",
+          entityId: subscription.id,
+          action: "PLATFORM_SUBSCRIPTION_CREATED",
+          ...requestContext,
+          after: subscription,
+        },
+        transaction,
+      );
+      return subscription;
     });
-    await this.prisma.tenant.update({
-      where: { id: input.tenantId },
-      data: { planCode: subscription.plan.code },
-    });
-    await this.audit.record({
-      platformUserId: actor.id,
-      tenantId: input.tenantId,
-      entityType: "TenantSubscription",
-      entityId: subscription.id,
-      action: "PLATFORM_SUBSCRIPTION_CREATED",
-      ...requestContext,
-      after: subscription,
-    });
-    return subscription;
   }
 
   async updateSubscription(
@@ -1414,49 +1723,180 @@ export class PlatformService {
   ) {
     const before = await this.prisma.tenantSubscription.findUnique({
       where: { id },
-    });
-    if (!before) throw new NotFoundException("Assinatura não encontrada.");
-    if (input.planId) await this.ensurePlan(input.planId);
-    const after = await this.prisma.tenantSubscription.update({
-      where: { id },
-      data: {
-        planId: input.planId,
-        status: input.status,
-        billingCycle: input.billingCycle,
-        currentPeriodStartsAt: toDate(
-          input.currentPeriodStartsAt,
-          "currentPeriodStartsAt",
-        ),
-        currentPeriodEndsAt: toDate(
-          input.currentPeriodEndsAt,
-          "currentPeriodEndsAt",
-        ),
-        cancelledAt:
-          input.status === TenantSubscriptionStatus.CANCELLED
-            ? new Date()
-            : undefined,
-      },
       include: { plan: true },
     });
-    if (input.planId) {
-      await this.prisma.tenant.update({
-        where: { id: before.tenantId },
-        data: { planCode: after.plan.code },
+    if (!before) throw new NotFoundException("Assinatura não encontrada.");
+    if (input.planId && input.planId !== before.planId) {
+      const plan = await this.prisma.platformPlan.findUnique({
+        where: { id: input.planId },
       });
+      if (!plan) throw new NotFoundException("Plano não encontrado.");
+      if (plan.status !== PlatformPlanStatus.ACTIVE) {
+        throw new ConflictException("O novo plano precisa estar ativo.");
+      }
+      if (input.contractedPriceCents === undefined) {
+        throw new BadRequestException(
+          "Informe o novo valor contratado ao alterar o plano.",
+        );
+      }
     }
-    await this.audit.record({
-      platformUserId: actor.id,
-      tenantId: before.tenantId,
-      entityType: "TenantSubscription",
-      entityId: id,
-      action: input.planId
+    const startsAt = toDate(input.startsAt, "startsAt");
+    const endsAt = toDate(input.endsAt ?? undefined, "endsAt");
+    const effectiveStart = startsAt ?? before.startsAt;
+    if (endsAt && endsAt < effectiveStart) {
+      throw new BadRequestException(
+        "A data final deve ser posterior à data de início.",
+      );
+    }
+    const requestedEndsAt = input.endsAt === null ? null : endsAt;
+    const termChanged =
+      input.endsAt !== undefined &&
+      (before.endsAt?.getTime() ?? null) !==
+        (requestedEndsAt?.getTime() ?? null);
+    const effectivePeriodStart =
+      toDate(input.currentPeriodStartsAt, "currentPeriodStartsAt") ??
+      startsAt ??
+      before.currentPeriodStartsAt;
+    const effectiveCycle = input.billingCycle ?? before.billingCycle;
+    const effectivePeriodEnd =
+      toDate(input.currentPeriodEndsAt, "currentPeriodEndsAt") ??
+      (input.billingCycle || startsAt
+        ? periodEnd(effectivePeriodStart, effectiveCycle)
+        : undefined);
+    const action =
+      input.planId && input.planId !== before.planId
         ? "PLATFORM_SUBSCRIPTION_PLAN_CHANGED"
-        : "PLATFORM_SUBSCRIPTION_UPDATED",
-      ...requestContext,
-      before,
-      after,
+        : input.contractedPriceCents !== undefined &&
+            input.contractedPriceCents !== before.contractedPriceCents
+          ? "PLATFORM_SUBSCRIPTION_PRICE_CHANGED"
+          : termChanged
+            ? "PLATFORM_SUBSCRIPTION_TERM_CHANGED"
+            : "PLATFORM_SUBSCRIPTION_UPDATED";
+    return this.prisma.$transaction(async (transaction) => {
+      const after = await transaction.tenantSubscription.update({
+        where: { id },
+        data: {
+          planId: input.planId,
+          status: input.status,
+          billingCycle: input.billingCycle,
+          contractedPriceCents: input.contractedPriceCents,
+          startsAt,
+          endsAt: input.endsAt === null ? null : endsAt,
+          currentPeriodStartsAt:
+            input.currentPeriodStartsAt || startsAt
+              ? effectivePeriodStart
+              : undefined,
+          currentPeriodEndsAt: effectivePeriodEnd,
+          contractNumber:
+            input.contractNumber === null ? null : input.contractNumber?.trim(),
+          notes: input.notes === null ? null : input.notes?.trim(),
+          cancelledAt:
+            input.status === TenantSubscriptionStatus.CANCELLED
+              ? new Date()
+              : undefined,
+        },
+        include: { plan: true, tenant: true },
+      });
+      if (input.planId && input.planId !== before.planId) {
+        await transaction.tenant.update({
+          where: { id: before.tenantId },
+          data: { planCode: after.plan.code },
+        });
+      }
+      await this.audit.record(
+        {
+          platformUserId: actor.id,
+          tenantId: before.tenantId,
+          entityType: "TenantSubscription",
+          entityId: id,
+          action,
+          ...requestContext,
+          before,
+          after,
+        },
+        transaction,
+      );
+      return after;
     });
-    return after;
+  }
+
+  async changeSubscriptionStatus(
+    id: string,
+    action: "suspend" | "reactivate" | "cancel",
+    input: SubscriptionActionDto,
+    actor: AuthenticatedPrincipal,
+    requestContext: RequestAuditContext,
+  ) {
+    const before = await this.prisma.tenantSubscription.findUnique({
+      where: { id },
+      include: { plan: true, tenant: true },
+    });
+    if (!before) throw new NotFoundException("Assinatura não encontrada.");
+    const transitions = {
+      suspend: {
+        from: [
+          TenantSubscriptionStatus.ACTIVE,
+          TenantSubscriptionStatus.TRIALING,
+        ],
+        to: TenantSubscriptionStatus.SUSPENDED,
+        audit: "PLATFORM_SUBSCRIPTION_SUSPENDED",
+      },
+      reactivate: {
+        from: [TenantSubscriptionStatus.SUSPENDED],
+        to: TenantSubscriptionStatus.ACTIVE,
+        audit: "PLATFORM_SUBSCRIPTION_REACTIVATED",
+      },
+      cancel: {
+        from: [
+          TenantSubscriptionStatus.DRAFT,
+          TenantSubscriptionStatus.TRIALING,
+          TenantSubscriptionStatus.ACTIVE,
+          TenantSubscriptionStatus.SUSPENDED,
+        ],
+        to: TenantSubscriptionStatus.CANCELLED,
+        audit: "PLATFORM_SUBSCRIPTION_CANCELLED",
+      },
+    } satisfies Record<
+      typeof action,
+      {
+        from: TenantSubscriptionStatus[];
+        to: TenantSubscriptionStatus;
+        audit: string;
+      }
+    >;
+    const transition = transitions[action];
+    if (
+      !(transition.from as TenantSubscriptionStatus[]).includes(before.status)
+    ) {
+      throw new ConflictException(
+        "O status atual não permite executar esta ação.",
+      );
+    }
+    return this.prisma.$transaction(async (transaction) => {
+      const after = await transaction.tenantSubscription.update({
+        where: { id },
+        data: {
+          status: transition.to,
+          cancelledAt: action === "cancel" ? new Date() : undefined,
+        },
+        include: { plan: true, tenant: true },
+      });
+      await this.audit.record(
+        {
+          platformUserId: actor.id,
+          tenantId: before.tenantId,
+          entityType: "TenantSubscription",
+          entityId: id,
+          action: transition.audit,
+          reason: input.reason,
+          ...requestContext,
+          before,
+          after,
+        },
+        transaction,
+      );
+      return after;
+    });
   }
 
   async listAudit(query: AuditQueryDto) {

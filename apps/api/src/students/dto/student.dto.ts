@@ -3,7 +3,7 @@ import {
   RegistryStatus,
   StudentDocumentType,
   StudentProcessStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,

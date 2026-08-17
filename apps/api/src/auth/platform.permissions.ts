@@ -1,5 +1,5 @@
 import type { PlatformPermission } from "@prumo/contracts";
-import { PlatformRole } from "@prisma/client";
+import { PlatformRole } from "@prumo/database";
 
 const SUPPORT_PERMISSIONS = [
   "platform.dashboard.read",
@@ -19,22 +19,28 @@ const ADMIN_PERMISSIONS = [
   "platform.users.read",
   "platform.users.manage",
   "platform.users.roles",
+  "platform.audit.read",
+  "platform.settings.manage",
+  "system.migrations.read",
+  "system.migrations.create",
+  "system.migrations.validate",
+  "system.migrations.execute",
+  "system.migrations.rollback",
+] as const satisfies readonly PlatformPermission[];
+
+const OWNER_PERMISSIONS = [
+  ...ADMIN_PERMISSIONS,
   "platform.plans.read",
   "platform.plans.manage",
   "platform.subscriptions.read",
   "platform.subscriptions.manage",
-  "platform.audit.read",
-  "platform.settings.manage",
 ] as const satisfies readonly PlatformPermission[];
 
-const ROLE_PERMISSIONS: Record<
-  PlatformRole,
-  readonly PlatformPermission[]
-> = {
+const ROLE_PERMISSIONS: Record<PlatformRole, readonly PlatformPermission[]> = {
   [PlatformRole.USER]: [],
   [PlatformRole.PLATFORM_SUPPORT]: SUPPORT_PERMISSIONS,
   [PlatformRole.PLATFORM_ADMIN]: ADMIN_PERMISSIONS,
-  [PlatformRole.PLATFORM_OWNER]: ADMIN_PERMISSIONS,
+  [PlatformRole.PLATFORM_OWNER]: OWNER_PERMISSIONS,
 };
 
 export function getPlatformPermissionsForRole(

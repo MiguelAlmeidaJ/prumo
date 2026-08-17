@@ -14,13 +14,10 @@ import {
   RegistryStatus,
   StudentDocumentType,
   TenantStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import type { AuthResponse } from "@prumo/contracts";
 import { hash } from "bcrypt";
-import { unlink } from "node:fs/promises";
 import type { Server } from "node:http";
-import { join } from "node:path";
-import { cwd } from "node:process";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
@@ -434,22 +431,26 @@ describe("Processos de habilitação e exames (e2e)", () => {
       .get(`/api/processes/${process.id}/documents/${requirement.id}/file`)
       .set(auth())
       .expect(HttpStatus.OK);
-    const downloaded = fileResponse.body as { contentBase64: string };
-    expect(Buffer.from(downloaded.contentBase64, "base64")).toEqual(content);
+    const downloaded = fileResponse.body as {
+      fileName: string;
+      mimeType: string;
+      url: string;
+      expiresAt: string;
+    };
+    expect(downloaded.fileName).toBe("rg-e2e.pdf");
+    expect(downloaded.mimeType).toBe("application/pdf");
+    expect(downloaded.url).toMatch(/^https:\/\/storage\.test\//);
+    expect(downloaded.expiresAt).toMatch(/Z$/);
     await request(app.getHttpServer())
       .get(`/api/processes/${process.id}/documents/${requirement.id}/file`)
       .set(auth(otherToken))
       .expect(HttpStatus.NOT_FOUND);
 
-    const stored = await prisma.studentDocument.findFirstOrThrow({
-      where: { tenantId, studentId, fileName: "rg-e2e.pdf" },
-      select: { storageKey: true },
-    });
-    if (stored.storageKey) {
-      await unlink(
-        join(cwd(), "var", "uploads", ...stored.storageKey.split("/")),
-      ).catch(() => undefined);
-    }
+    expect(
+      await prisma.auditLog.count({
+        where: { tenantId, action: "DOCUMENT_FILE_ACCESSED" },
+      }),
+    ).toBe(1);
   });
 
   it("impede exame teórico e prático sem cargas e aprovação prévias", async () => {

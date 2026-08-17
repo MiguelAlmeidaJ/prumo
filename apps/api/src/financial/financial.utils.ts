@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import {
   ContractAdjustmentType,
-  Prisma,
+  isPrismaKnownRequestError,
   ReceivableStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 
 export function itemTotal(
   quantity: number,
@@ -74,7 +74,7 @@ export function nullable(value: string | undefined) {
 
 export function rethrowUnique(error: unknown, message: string): never {
   if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
+    isPrismaKnownRequestError(error) &&
     error.code === "P2002"
   ) {
     throw new ConflictException(message);

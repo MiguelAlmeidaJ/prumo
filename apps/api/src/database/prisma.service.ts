@@ -4,13 +4,22 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from "@nestjs/common";
-import { Prisma, PrismaClient } from "@prisma/client";
+import {
+  createPrismaAdapter,
+  isPrismaKnownRequestError,
+  Prisma,
+  PrismaClient,
+} from "@prumo/database";
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  constructor() {
+    super({ adapter: createPrismaAdapter() });
+  }
+
   async onModuleInit(): Promise<void> {
     await this.$connect();
   }
@@ -30,7 +39,7 @@ export class PrismaService
         });
       } catch (error) {
         const isWriteConflict =
-          error instanceof Prisma.PrismaClientKnownRequestError &&
+          isPrismaKnownRequestError(error) &&
           error.code === "P2034";
         if (!isWriteConflict) throw error;
         if (attempt === maxAttempts) {

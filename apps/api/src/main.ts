@@ -1,4 +1,4 @@
-import { ValidationPipe } from "@nestjs/common";
+import { ConsoleLogger, RequestMethod, ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
@@ -7,6 +7,7 @@ import { timingSafeEqual } from "node:crypto";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import type { AppEnvironment } from "./config/environment";
+import { StructuredLoggerService } from "./observability/structured-logger.service";
 
 interface SwaggerRequest {
   headers: { authorization?: string };
@@ -59,7 +60,9 @@ function swaggerBasicAuth(config: ConfigService) {
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: new ConsoleLogger({ json: true, colors: false }),
+  });
   const configService = app.get(ConfigService);
   const appEnvironment = configService.get<AppEnvironment>("APP_ENV")!;
   const isProduction = appEnvironment === "production";
@@ -75,7 +78,14 @@ async function bootstrap(): Promise<void> {
   // Um arquivo binário de 10 MB ocupa até ~13,4 MB quando codificado em base64.
   app.useBodyParser("json", { limit: "14mb" });
   app.useBodyParser("urlencoded", { limit: "14mb", extended: true });
-  app.setGlobalPrefix("api");
+  app.setGlobalPrefix("api", {
+    exclude: [
+      { path: "health", method: RequestMethod.GET },
+      { path: "ready", method: RequestMethod.GET },
+      { path: "metrics", method: RequestMethod.GET },
+    ],
+  });
+  app.enableShutdownHooks(["SIGINT", "SIGTERM"]);
   const configuredOrigins = (configService.get<string>("CORS_ORIGINS") ?? "")
     .split(",")
     .map((origin) => origin.trim())
@@ -130,10 +140,17 @@ async function bootstrap(): Promise<void> {
   }
 
   const port = Number(process.env.API_PORT ?? 3333);
-  await app.listen(port, "0.0.0.0");
+  const server = await app.listen(port, "0.0.0.0");
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
 
-  console.log(`API: http://localhost:${port}/api`);
-  if (swaggerEnabled) console.log(`Swagger: http://localhost:${port}/docs`);
+  const logger = app.get(StructuredLoggerService);
+  logger.write("info", "application.started", {
+    port,
+    swaggerEnabled,
+    healthPath: "/health",
+    readinessPath: "/ready",
+  });
 }
 
 void bootstrap();

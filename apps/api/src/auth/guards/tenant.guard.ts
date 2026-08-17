@@ -5,7 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { TenantStatus } from "@prisma/client";
+import { TenantStatus } from "@prumo/database";
 import { PrismaService } from "../../database/prisma.service";
 import { getPermissionsForRole } from "../auth.permissions";
 import type { AuthenticatedRequest } from "../auth.types";

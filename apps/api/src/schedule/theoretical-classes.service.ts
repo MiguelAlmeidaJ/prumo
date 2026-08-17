@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DomainEventType, LessonStatus, Prisma } from "@prisma/client";
+import { DomainEventType, LessonStatus, Prisma } from "@prumo/database";
 import type { Permission } from "@prumo/contracts";
 import { nullable } from "../common/registration.utils";
 import { PrismaService } from "../database/prisma.service";

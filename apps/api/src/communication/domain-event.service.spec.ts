@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await */
-import { DomainEventStatus, DomainEventType } from "@prisma/client";
+import { DomainEventStatus, DomainEventType } from "@prumo/database";
 import { describe, expect, it, vi } from "vitest";
 import { DomainEventService } from "./domain-event.service";
 

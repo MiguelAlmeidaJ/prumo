@@ -6,7 +6,7 @@ import {
   NotificationDeliveryStatus,
   NotificationPriority,
   Prisma,
-} from "@prisma/client";
+} from "@prumo/database";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../database/prisma.service";
 import {

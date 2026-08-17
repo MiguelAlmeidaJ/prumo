@@ -9,7 +9,7 @@ import {
   ExpenseStatus,
   PaymentMethod,
   Prisma,
-} from "@prisma/client";
+} from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "../schedule/audit.service";
 import {

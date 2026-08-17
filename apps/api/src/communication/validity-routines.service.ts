@@ -3,7 +3,7 @@ import {
   DomainEventType,
   ReceivableStatus,
   ScheduledTaskStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { DomainEventService } from "./domain-event.service";
 

@@ -10,7 +10,7 @@ import {
   ProcessDocumentStatus,
   ReceivableStatus,
   RegistryStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { PrismaService } from "../database/prisma.service";
 

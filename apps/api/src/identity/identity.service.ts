@@ -26,7 +26,7 @@ import {
   TenantSubscriptionStatus,
   TenantStatus,
   UserCredentialTokenType,
-} from "@prisma/client";
+} from "@prumo/database";
 import { compare, hash } from "bcrypt";
 import { createHash, randomBytes } from "node:crypto";
 import type {

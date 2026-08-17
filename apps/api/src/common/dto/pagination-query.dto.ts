@@ -1,6 +1,6 @@
 import { Type } from "class-transformer";
 import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
-import { RegistryStatus } from "@prisma/client";
+import { RegistryStatus } from "@prumo/database";
 import { ApiPropertyOptional } from "@nestjs/swagger";
 
 export class PaginationQueryDto {

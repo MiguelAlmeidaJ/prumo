@@ -9,14 +9,13 @@ import {
   LicenseProcessStatus,
   Prisma,
   ProcessDocumentStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { nullable, optionalDate } from "../common/registration.utils";
 import { PrismaService } from "../database/prisma.service";
 import { DomainEventService } from "../communication/domain-event.service";
 import { AuditService } from "../schedule/audit.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import {
   LinkProcessDocumentDto,
   RejectProcessDocumentDto,
@@ -63,6 +62,7 @@ export class ProcessDocumentsService {
     private readonly progression: ProcessProgressionService,
     private readonly audit: AuditService,
     private readonly events: DomainEventService,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   async list(tenantId: string, processId: string) {
@@ -156,10 +156,15 @@ export class ProcessDocumentsService {
         : input.mimeType === "image/png"
           ? "png"
           : "jpg";
-    const storageKey = `${tenantId}/${process.studentId}/${randomUUID()}.${extension}`;
-    const destination = join(this.uploadDirectory(), ...storageKey.split("/"));
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, content, { flag: "wx" });
+    const storageKey = await this.storage.putDocument({
+      tenantId,
+      studentId: process.studentId,
+      actorUserId,
+      fileName: input.fileName.trim(),
+      contentType: input.mimeType,
+      extension,
+      body: content,
+    });
     try {
       return await this.prisma.$transaction(async (transaction) => {
         const document = await transaction.studentDocument.create({
@@ -204,12 +209,19 @@ export class ProcessDocumentsService {
         return updated;
       });
     } catch (error) {
-      await unlink(destination).catch(() => undefined);
+      await this.storage
+        .deleteDocument(tenantId, storageKey)
+        .catch(() => undefined);
       throw error;
     }
   }
 
-  async file(tenantId: string, processId: string, requirementId: string) {
+  async file(
+    tenantId: string,
+    actorUserId: string,
+    processId: string,
+    requirementId: string,
+  ) {
     const processExists = await this.prisma.studentLicenseProcess.count({
       where: { id: processId, tenantId },
     });
@@ -218,7 +230,12 @@ export class ProcessDocumentsService {
       where: { id: requirementId, tenantId, processId },
       select: {
         studentDocument: {
-          select: { fileName: true, fileMimeType: true, storageKey: true },
+          select: {
+            id: true,
+            fileName: true,
+            fileMimeType: true,
+            storageKey: true,
+          },
         },
       },
     });
@@ -226,14 +243,25 @@ export class ProcessDocumentsService {
     if (!document?.storageKey || !document.fileName || !document.fileMimeType) {
       throw new NotFoundException("Arquivo não encontrado.");
     }
-    const content = await readFile(
-      join(this.uploadDirectory(), ...document.storageKey.split("/")),
-    ).catch(() => null);
-    if (!content) throw new NotFoundException("Arquivo não encontrado.");
+    const signed = await this.storage.signedDownloadUrl({
+      tenantId,
+      key: document.storageKey,
+      fileName: document.fileName,
+      contentType: document.fileMimeType,
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId,
+        entityType: "StudentDocument",
+        entityId: document.id,
+        action: "DOCUMENT_FILE_ACCESSED",
+        actorUserId,
+      },
+    });
     return {
       fileName: document.fileName,
       mimeType: document.fileMimeType,
-      contentBase64: content.toString("base64"),
+      ...signed,
     };
   }
 
@@ -441,13 +469,5 @@ export class ProcessDocumentsService {
       );
     }
     return process;
-  }
-
-  private uploadDirectory(): string {
-    return (
-      process.env.UPLOAD_DIR ??
-      process.env.MOBILE_UPLOAD_DIR ??
-      join(process.cwd(), "var", "uploads")
-    );
   }
 }

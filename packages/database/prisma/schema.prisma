@@ -1,10 +1,10 @@
 generator client {
   provider = "prisma-client-js"
+  output = "../src/generate/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum TenantStatus {
@@ -59,15 +59,19 @@ enum PlatformPlanStatus {
 }
 
 enum TenantSubscriptionStatus {
+  DRAFT
   TRIALING
   ACTIVE
   PAST_DUE
   SUSPENDED
   CANCELLED
+  EXPIRED
 }
 
 enum BillingCycle {
   MONTHLY
+  QUARTERLY
+  SEMIANNUAL
   ANNUAL
   MANUAL
 }
@@ -466,6 +470,47 @@ enum DocumentUploadStatus {
   EXPIRED
 }
 
+enum ImportJobStatus {
+  CREATED
+  UPLOADED
+  MAPPING
+  VALIDATING
+  READY
+  IMPORTING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+  ROLLED_BACK
+}
+
+enum ImportFileFormat {
+  CSV
+  XLSX
+}
+
+enum ImportEntityType {
+  UNITS
+  INSTRUCTORS
+  STUDENTS
+  ENROLLMENTS
+  FINANCIAL
+  LESSONS
+  EXAMS
+  DOCUMENTS
+}
+
+enum ImportIssueSeverity {
+  WARNING
+  ERROR
+}
+
+enum ImportConflictPolicy {
+  ERROR
+  SKIP
+  UPDATE
+  LINK
+}
+
 model Tenant {
   id                       String                           @id @default(uuid()) @db.Uuid
   name                     String
@@ -541,6 +586,11 @@ model Tenant {
   subscriptions            TenantSubscription[]
   supportSessions          SupportSession[]
   credentialTokens         UserCredentialToken[]
+  importJobs               ImportJob[]
+  importFiles              ImportFile[]
+  importMappings           ImportMapping[]
+  legacyImportMaps         LegacyImportMap[]
+  importIssues             ImportIssue[]
   createdAt                DateTime                         @default(now())
   updatedAt                DateTime                         @updatedAt
 
@@ -596,6 +646,7 @@ model User {
   endedSupportSessions      SupportSession[]                 @relation("SupportEndedByUser")
   platformAuditLogs         AuditLog[]                       @relation("PlatformAuditActor")
   credentialTokens          UserCredentialToken[]
+  createdImportJobs         ImportJob[]                      @relation("ImportJobCreator")
   passwordSetAt             DateTime?
   createdAt                 DateTime                         @default(now())
   updatedAt                 DateTime                         @updatedAt
@@ -1058,6 +1109,128 @@ model AuditLog {
   @@index([action, createdAt])
 }
 
+model ImportJob {
+  id                      String            @id @default(uuid()) @db.Uuid
+  tenantId                String            @db.Uuid
+  sourceSystem            String
+  description             String?
+  migrationType           String
+  cutoverDate             DateTime
+  status                  ImportJobStatus   @default(CREATED)
+  conflictPolicies        Json?
+  validationSummary       Json?
+  preview                 Json?
+  progress                Json?
+  errorMessage            String?
+  createdByPlatformUserId String            @db.Uuid
+  startedAt               DateTime?
+  completedAt             DateTime?
+  rolledBackAt            DateTime?
+  totalRecords            Int               @default(0)
+  successfulRecords       Int               @default(0)
+  warningRecords          Int               @default(0)
+  failedRecords           Int               @default(0)
+  tenant                  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  createdBy               User              @relation("ImportJobCreator", fields: [createdByPlatformUserId], references: [id], onDelete: Restrict)
+  files                   ImportFile[]
+  mappings                ImportMapping[]
+  legacyMaps              LegacyImportMap[]
+  issues                  ImportIssue[]
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdByPlatformUserId, createdAt])
+}
+
+model ImportFile {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String           @db.Uuid
+  importJobId String           @db.Uuid
+  entityType  ImportEntityType
+  format      ImportFileFormat
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String           @unique
+  checksum    String
+  headers     Json
+  sampleRows  Json
+  rowCount    Int
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  importJob   ImportJob        @relation(fields: [importJobId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  mappings    ImportMapping[]
+  issues      ImportIssue[]
+  createdAt   DateTime         @default(now())
+
+  @@unique([id, tenantId])
+  @@index([tenantId, importJobId, entityType])
+  @@index([importJobId, createdAt])
+}
+
+model ImportMapping {
+  id             String               @id @default(uuid()) @db.Uuid
+  tenantId       String               @db.Uuid
+  importJobId    String               @db.Uuid
+  importFileId   String               @db.Uuid
+  entityType     ImportEntityType
+  sourceColumn   String
+  targetField    String
+  conflictPolicy ImportConflictPolicy @default(ERROR)
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  importJob      ImportJob            @relation(fields: [importJobId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  importFile     ImportFile           @relation(fields: [importFileId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([importFileId, sourceColumn])
+  @@unique([importFileId, targetField])
+  @@index([tenantId, importJobId, entityType])
+}
+
+model LegacyImportMap {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @db.Uuid
+  importJobId     String           @db.Uuid
+  sourceSystem    String
+  entityType      ImportEntityType
+  legacyId        String
+  entityId        String           @db.Uuid
+  checksum        String
+  createdByImport Boolean          @default(true)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  importJob       ImportJob        @relation(fields: [importJobId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([tenantId, sourceSystem, entityType, legacyId])
+  @@index([tenantId, importJobId, entityType])
+  @@index([tenantId, entityType, entityId])
+}
+
+model ImportIssue {
+  id           String              @id @default(uuid()) @db.Uuid
+  tenantId     String              @db.Uuid
+  importJobId  String              @db.Uuid
+  importFileId String?             @db.Uuid
+  severity     ImportIssueSeverity
+  entityType   ImportEntityType
+  rowNumber    Int?
+  field        String?
+  value        String?
+  code         String
+  message      String
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  importJob    ImportJob           @relation(fields: [importJobId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  importFile   ImportFile?         @relation(fields: [importFileId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdAt    DateTime            @default(now())
+
+  @@index([tenantId, importJobId, severity])
+  @@index([importFileId, rowNumber])
+}
+
 model TenantSettings {
   id                    String   @id @default(uuid()) @db.Uuid
   tenantId              String   @unique @db.Uuid
@@ -1071,23 +1244,28 @@ model TenantSettings {
 }
 
 model PlatformPlan {
-  id                String               @id @default(uuid()) @db.Uuid
-  code              String               @unique
-  name              String
-  description       String?
-  status            PlatformPlanStatus   @default(DRAFT)
-  monthlyPriceCents Int
-  annualPriceCents  Int?
-  maxUsers          Int?
-  maxStudents       Int?
-  maxUnits          Int?
-  maxStorageBytes   BigInt?
-  features          Json
-  subscriptions     TenantSubscription[]
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  id                  String               @id @default(uuid()) @db.Uuid
+  code                String               @unique
+  name                String
+  description         String?
+  status              PlatformPlanStatus   @default(DRAFT)
+  featured            Boolean              @default(false)
+  displayOrder        Int                  @default(0)
+  defaultBillingCycle BillingCycle          @default(MONTHLY)
+  monthlyPriceCents   Int
+  annualPriceCents    Int?
+  maxUsers            Int?
+  maxStudents         Int?
+  maxUnits            Int?
+  maxInstructors      Int?
+  maxVehicles         Int?
+  maxStorageBytes     BigInt?
+  features            Json
+  subscriptions       TenantSubscription[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
-  @@index([status, name])
+  @@index([status, displayOrder, name])
 }
 
 model TenantSubscription {
@@ -1096,10 +1274,14 @@ model TenantSubscription {
   planId                String                   @db.Uuid
   status                TenantSubscriptionStatus
   billingCycle          BillingCycle
+  contractedPriceCents  Int
   startsAt              DateTime
+  endsAt                DateTime?
   trialEndsAt           DateTime?
   currentPeriodStartsAt DateTime
   currentPeriodEndsAt   DateTime
+  contractNumber        String?
+  notes                 String?
   cancelledAt           DateTime?
   tenant                Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plan                  PlatformPlan             @relation(fields: [planId], references: [id], onDelete: Restrict)

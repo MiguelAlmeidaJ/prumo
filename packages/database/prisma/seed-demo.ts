@@ -1,19 +1,20 @@
 import {
   BillingCycle,
+  createPrismaClient,
   MembershipRole,
   NotificationChannel,
-  PrismaClient,
   RegistryStatus,
   StudentDocumentType,
   StudentProcessStatus,
   TenantStatus,
   TenantSubscriptionStatus,
   Weekday,
-} from "@prisma/client";
+} from "../src";
 import { compare, hash } from "bcrypt";
+import { seedDemoScenario, verifyDemoScenario } from "./seed/demo-scenario";
 import { DEFAULT_REMINDER_RULES, runReferenceSeed } from "./seed/reference";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 const DEMO_TENANT_SLUG = "autoescola-demonstracao";
 const DEMO_ADMIN_EMAIL = "admin@prumo.local";
@@ -91,6 +92,7 @@ async function seedDemo(): Promise<void> {
   async function ensureSubscription(
     tenantId: string,
     planId: string,
+    contractedPriceCents: number,
     status: TenantSubscriptionStatus,
   ): Promise<void> {
     const existing = await prisma.tenantSubscription.findFirst({
@@ -111,6 +113,7 @@ async function seedDemo(): Promise<void> {
     const data = {
       status,
       billingCycle: BillingCycle.MONTHLY,
+      contractedPriceCents,
       startsAt,
       currentPeriodStartsAt,
       currentPeriodEndsAt,
@@ -129,11 +132,13 @@ async function seedDemo(): Promise<void> {
   await ensureSubscription(
     tenant.id,
     proPlan.id,
+    proPlan.monthlyPriceCents,
     TenantSubscriptionStatus.ACTIVE,
   );
   await ensureSubscription(
     suspendedTenant.id,
     basicPlan.id,
+    basicPlan.monthlyPriceCents,
     TenantSubscriptionStatus.SUSPENDED,
   );
   await prisma.tenant.update({
@@ -532,7 +537,17 @@ async function seedDemo(): Promise<void> {
     });
   }
 
-  console.log(`Seed de demonstração concluído: ${DEMO_ADMIN_EMAIL}.`);
+  await seedDemoScenario(prisma, {
+    tenantId: tenant.id,
+    ownerUserId: user.id,
+    passwordHash,
+  });
+  const verification = await verifyDemoScenario(prisma, tenant.id);
+
+  console.log(
+    `Seed de demonstração concluído: ${DEMO_ADMIN_EMAIL}.`,
+    verification,
+  );
 }
 
 seedDemo()

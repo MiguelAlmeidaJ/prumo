@@ -4,7 +4,7 @@ import {
   LessonEvaluationValue,
   StudentDocumentType,
   VehicleOccurrenceType,
-} from "@prisma/client";
+} from "@prumo/database";
 import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,

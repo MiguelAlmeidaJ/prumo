@@ -9,7 +9,7 @@ import {
   Prisma,
   RegistryStatus,
   ScheduleResourceType,
-} from "@prisma/client";
+} from "@prumo/database";
 import {
   ACTIVE_LESSON_STATUSES,
   ensureSameUtcDay,

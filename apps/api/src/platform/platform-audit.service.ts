@@ -1,9 +1,13 @@
 import { Injectable } from "@nestjs/common";
-import { AuditActorType, Prisma } from "@prisma/client";
+import { AuditActorType, Prisma } from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 
 function jsonValue(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  return JSON.parse(
+    JSON.stringify(value, (_key, item: unknown) =>
+      typeof item === "bigint" ? item.toString() : item,
+    ),
+  ) as Prisma.InputJsonValue;
 }
 
 export interface PlatformAuditInput {
@@ -44,8 +48,7 @@ export class PlatformAuditService {
         userAgent: input.userAgent,
         before:
           input.before === undefined ? undefined : jsonValue(input.before),
-        after:
-          input.after === undefined ? undefined : jsonValue(input.after),
+        after: input.after === undefined ? undefined : jsonValue(input.after),
       },
     });
   }

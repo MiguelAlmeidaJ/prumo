@@ -199,4 +199,38 @@ export class CommunicationQueueService implements OnApplicationShutdown {
   queueNames(): readonly CommunicationQueueName[] {
     return COMMUNICATION_QUEUES;
   }
+
+  async healthSnapshot(): Promise<{
+    enabled: boolean;
+    queues: Array<{
+      name: CommunicationQueueName;
+      waiting: number;
+      active: number;
+      delayed: number;
+      failed: number;
+      paused: number;
+    }>;
+  }> {
+    if (!this.enabled) return { enabled: false, queues: [] };
+    const queues = await Promise.all(
+      COMMUNICATION_QUEUES.map(async (name) => {
+        const counts = await this.queue(name).getJobCounts(
+          "waiting",
+          "active",
+          "delayed",
+          "failed",
+          "paused",
+        );
+        return {
+          name,
+          waiting: counts.waiting ?? 0,
+          active: counts.active ?? 0,
+          delayed: counts.delayed ?? 0,
+          failed: counts.failed ?? 0,
+          paused: counts.paused ?? 0,
+        };
+      }),
+    );
+    return { enabled: true, queues };
+  }
 }

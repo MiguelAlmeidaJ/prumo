@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@prumo/database";
 import { nullable, throwConflict } from "../common/registration.utils";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "./audit.service";

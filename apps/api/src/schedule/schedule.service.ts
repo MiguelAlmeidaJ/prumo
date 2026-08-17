@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, ScheduleResourceType } from "@prisma/client";
+import { Prisma, ScheduleResourceType } from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import {
   ScheduleAvailabilityQueryDto,

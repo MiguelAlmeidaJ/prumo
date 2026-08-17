@@ -1,9 +1,11 @@
 import {
   AuditActorType,
+  isPrismaKnownRequestError,
   PlatformRole,
   Prisma,
   type PrismaClient,
-} from "@prisma/client";
+  type User,
+} from "../../src";
 import { hash } from "bcrypt";
 
 const ADMIN_ROLES = [PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OWNER];
@@ -41,7 +43,15 @@ function bootstrapInput() {
   return { name, email, password };
 }
 
-export async function bootstrapAdmin(prisma: PrismaClient) {
+interface BootstrapAdminResult {
+  created: boolean;
+  admin: Pick<User, "id" | "email" | "active" | "platformRole"> &
+    Partial<Pick<User, "name" | "createdAt">>;
+}
+
+export async function bootstrapAdmin(
+  prisma: PrismaClient,
+): Promise<BootstrapAdminResult> {
   const existingAdmin = await prisma.user.findFirst({
     where: { platformRole: { in: ADMIN_ROLES } },
     select: { id: true, email: true, active: true, platformRole: true },
@@ -114,7 +124,7 @@ export async function bootstrapAdmin(prisma: PrismaClient) {
     return { created: "name" in admin, admin } as const;
   } catch (error) {
     if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
+      isPrismaKnownRequestError(error) &&
       error.code === "P2034"
     ) {
       const admin = await prisma.user.findFirst({

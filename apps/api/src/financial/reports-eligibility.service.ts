@@ -2,11 +2,11 @@ import { ConflictException, Injectable } from "@nestjs/common";
 import {
   ContractItemSourceType,
   FinancialServiceCategory,
+  isPrismaKnownRequestError,
   PaymentStatus,
-  Prisma,
   ReceivableStatus,
   StudentContractStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "../schedule/audit.service";
 import {
@@ -263,7 +263,7 @@ export class AutomaticChargeService {
       });
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
+        isPrismaKnownRequestError(error) &&
         error.code === "P2002"
       ) {
         const duplicate = await this.prisma.studentContractItem.findFirst({

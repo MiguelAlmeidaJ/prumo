@@ -2,7 +2,7 @@
 import {
   NotificationChannel,
   NotificationDeliveryStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../database/prisma.service";
 import { DeliveryChannelService } from "./delivery-channel.service";

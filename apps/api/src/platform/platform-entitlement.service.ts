@@ -3,24 +3,30 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import {
-  TenantSubscriptionStatus,
-  type PlatformPlan,
-} from "@prisma/client";
+import { TenantSubscriptionStatus, type PlatformPlan } from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 
 export const PLATFORM_FEATURES = [
+  "STUDENT_MANAGEMENT",
+  "ENROLLMENTS",
+  "SCHEDULE",
   "FINANCIAL",
+  "DOCUMENTS",
   "MOBILE_APP",
+  "STUDENT_APP",
+  "INSTRUCTOR_APP",
   "NOTIFICATIONS",
   "MULTI_UNIT",
   "ADVANCED_REPORTS",
   "CUSTOM_BRANDING",
   "API_ACCESS",
+  "DATA_MIGRATION",
+  "PRIORITY_SUPPORT",
 ] as const;
 
 export type PlatformFeature = (typeof PLATFORM_FEATURES)[number];
-type LimitedResource = "users" | "students" | "units";
+type LimitedResource =
+  "users" | "students" | "units" | "instructors" | "vehicles";
 
 @Injectable()
 export class PlatformEntitlementService {
@@ -28,7 +34,7 @@ export class PlatformEntitlementService {
 
   async getUsage(tenantId: string) {
     const plan = await this.getActivePlan(tenantId);
-    const [users, students, units] = await Promise.all([
+    const [users, students, units, instructors, vehicles] = await Promise.all([
       this.prisma.membership.count({
         where: { tenantId, active: true },
       }),
@@ -38,6 +44,12 @@ export class PlatformEntitlementService {
       this.prisma.schoolUnit.count({
         where: { tenantId, active: true },
       }),
+      this.prisma.instructor.count({
+        where: { tenantId, status: "ACTIVE" },
+      }),
+      this.prisma.vehicle.count({
+        where: { tenantId, status: "ACTIVE" },
+      }),
     ]);
     return {
       plan: { id: plan.id, code: plan.code, name: plan.name },
@@ -45,7 +57,12 @@ export class PlatformEntitlementService {
         users: { used: users, limit: plan.maxUsers },
         students: { used: students, limit: plan.maxStudents },
         units: { used: units, limit: plan.maxUnits },
-        storageBytes: { used: null, limit: plan.maxStorageBytes?.toString() ?? null },
+        instructors: { used: instructors, limit: plan.maxInstructors },
+        vehicles: { used: vehicles, limit: plan.maxVehicles },
+        storageBytes: {
+          used: null,
+          limit: plan.maxStorageBytes?.toString() ?? null,
+        },
       },
       features: this.readFeatures(plan),
     };
@@ -58,9 +75,7 @@ export class PlatformEntitlementService {
     const usage = await this.getUsage(tenantId);
     const current = usage.resources[resource];
     if (current.limit !== null && current.used >= current.limit) {
-      throw new ConflictException(
-        `Limite do plano atingido para ${resource}.`,
-      );
+      throw new ConflictException(`Limite do plano atingido para ${resource}.`);
     }
   }
 

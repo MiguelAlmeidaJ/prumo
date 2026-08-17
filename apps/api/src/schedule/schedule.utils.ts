@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
-import { LessonStatus, Prisma, Weekday } from "@prisma/client";
+import { LessonStatus, Prisma, Weekday } from "@prumo/database";
 
 export const ACTIVE_LESSON_STATUSES = [
   LessonStatus.PENDING,

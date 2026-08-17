@@ -2,8 +2,9 @@ import {
   DomainEventType,
   NotificationChannel,
   PlatformPlanStatus,
+  type PlatformPlan,
   type PrismaClient,
-} from "@prisma/client";
+} from "../../src";
 
 const TEMPLATE_CODES = [
   "user-invited",
@@ -76,7 +77,15 @@ export const DEFAULT_REMINDER_RULES = [
   [DomainEventType.PROCESS_CREATED, 30 * 24 * 60, "process-expiring"],
 ] as const;
 
-export async function runReferenceSeed(prisma: PrismaClient) {
+interface ReferenceSeedResult {
+  basicPlan: PlatformPlan;
+  proPlan: PlatformPlan;
+  templateIds: Map<string, string>;
+}
+
+export async function runReferenceSeed(
+  prisma: PrismaClient,
+): Promise<ReferenceSeedResult> {
   const licenseCategories = [
     {
       code: "ACC",

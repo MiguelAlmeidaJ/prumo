@@ -11,12 +11,9 @@ import {
   MembershipRole,
   RegistryStatus,
   TenantStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { hash } from "bcrypt";
-import { mkdtemp, rm } from "node:fs/promises";
 import type { Server } from "node:http";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
@@ -38,15 +35,12 @@ describe("Aplicativo mobile (e2e)", () => {
   let lessonId: string;
   let theoreticalClassId: string;
   let vehicleId: string;
-  let uploadDir: string;
 
   const auth = (token: string) => ({
     Authorization: `Bearer ${token}`,
   });
 
   beforeAll(async () => {
-    uploadDir = await mkdtemp(join(tmpdir(), "prumo-mobile-e2e-"));
-    process.env.MOBILE_UPLOAD_DIR = uploadDir;
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -215,8 +209,6 @@ describe("Aplicativo mobile (e2e)", () => {
       });
     }
     if (app) await app.close();
-    if (uploadDir) await rm(uploadDir, { recursive: true, force: true });
-    delete process.env.MOBILE_UPLOAD_DIR;
   });
 
   it("entrega homes por perfil e bloqueia a rota incompatível", async () => {

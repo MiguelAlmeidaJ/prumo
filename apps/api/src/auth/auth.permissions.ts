@@ -1,5 +1,5 @@
 import type { Permission } from "@prumo/contracts";
-import { MembershipRole } from "@prisma/client";
+import { MembershipRole } from "@prumo/database";
 
 const BASIC_PERMISSIONS = [
   "profile:read",

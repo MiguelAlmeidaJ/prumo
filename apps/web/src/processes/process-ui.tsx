@@ -933,21 +933,14 @@ export function ProcessDocuments() {
       const file = await request<{
         fileName: string;
         mimeType: string;
-        contentBase64: string;
+        url: string;
+        expiresAt: string;
       }>(`/processes/${id}/documents/${requirement.id}/file`);
-      const binary = window.atob(file.contentBase64);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) {
-        bytes[index] = binary.charCodeAt(index);
-      }
-      const url = URL.createObjectURL(
-        new Blob([bytes], { type: file.mimeType }),
-      );
       const anchor = document.createElement("a");
-      anchor.href = url;
+      anchor.href = file.url;
       anchor.download = file.fileName;
+      anchor.rel = "noopener noreferrer";
       anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (fileError) {
       setActionError(message(fileError));
     } finally {

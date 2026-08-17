@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type PropsWithChildren } from "react";
 import { useAuth } from "@/auth/auth-context";
+import { BrandLogo } from "@/components/brand-logo";
 import { visiblePlatformNavigation } from "./platform-navigation";
 
 type StoredSupport = {
@@ -59,7 +60,7 @@ export function PlatformShell({ children }: PropsWithChildren) {
   ) {
     return (
       <main className="platform-loading">
-        <span className="platform-logo">P</span>
+        <BrandLogo className="platform-logo" symbolOnly />
         <span>Preparando o console seguro…</span>
       </main>
     );
@@ -70,8 +71,7 @@ export function PlatformShell({ children }: PropsWithChildren) {
     <main className="platform-layout">
       <aside className="platform-sidebar">
         <Link href="/platform" className="platform-brand">
-          <span>P</span>
-          <strong>PRUMO</strong>
+          <BrandLogo alt="" className="platform-brand__logo" variant="white" />
           <small>Console Anoar</small>
         </Link>
         <div className="platform-environment">

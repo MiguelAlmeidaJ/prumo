@@ -13,6 +13,7 @@ describe("navegação do console da plataforma", () => {
       "/platform/plans",
       "/platform/subscriptions",
       "/platform/support",
+      "/platform/migrations",
       "/platform/audit",
       "/platform/health",
       "/platform/settings",
@@ -29,5 +30,27 @@ describe("navegação do console da plataforma", () => {
     expect(visible).toContain("/platform/support");
     expect(visible).not.toContain("/platform/users");
     expect(visible).not.toContain("/platform/settings");
+    expect(visible).not.toContain("/platform/migrations");
+  });
+
+  it("mostra migrações somente com a permissão de sistema", () => {
+    expect(
+      visiblePlatformNavigation(["system.migrations.read"]).map(
+        ([href]) => href,
+      ),
+    ).toEqual(["/platform/migrations"]);
+  });
+
+  it("mostra planos e assinaturas somente com as permissões do proprietário", () => {
+    expect(
+      visiblePlatformNavigation([
+        "platform.plans.read",
+        "platform.subscriptions.read",
+      ]).map(([href]) => href),
+    ).toEqual(["/platform/plans", "/platform/subscriptions"]);
+
+    expect(
+      visiblePlatformNavigation(["platform.audit.read"]).map(([href]) => href),
+    ).not.toContain("/platform/plans");
   });
 });

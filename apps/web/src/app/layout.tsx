@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Prumo | Gestão para autoescolas",
   description: "Sua autoescola no rumo certo.",
+  icons: {
+    icon: [{ url: "/brand/favicon-prumo.svg", type: "image/svg+xml" }],
+    shortcut: "/brand/favicon-prumo.svg",
+  },
 };
 
 export default function RootLayout({

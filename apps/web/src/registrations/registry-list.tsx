@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { useAuth } from "@/auth/auth-context";
+import { ActionMenu } from "@/components/action-menu";
 import { AppShell } from "@/components/app-shell";
 import { ApiError } from "@/lib/auth-api";
 import type { BaseRegistryRecord, RegistryConfig } from "./registry-config";
@@ -203,39 +204,45 @@ export function RegistryList<T extends BaseRegistryRecord>({
                       {item.status === "ACTIVE" ? "Ativo" : "Inativo"}
                     </span>
                   </span>
-                  <span className="registry-actions">
-                    {config.route === "/students" && canReadProcesses ? (
-                      <Link href={`/students/${item.id}/processes`}>
-                        Processos
-                      </Link>
-                    ) : null}
-                    {config.route === "/students" && canReadContracts ? (
-                      <Link href={`/students/${item.id}/contracts`}>
-                        Contratos
-                      </Link>
-                    ) : null}
-                    {canUpdate ? (
-                      <Link
-                        href={`${config.route}/${item.id}/edit`}
-                        aria-label={`Editar ${config.primary(item)}`}
-                      >
-                        Editar
-                      </Link>
-                    ) : null}
-                    {canChangeStatus ? (
-                      <button
-                        type="button"
-                        disabled={changingId === item.id}
-                        onClick={() => void toggleStatus(item)}
-                      >
-                        {changingId === item.id
-                          ? "Salvando…"
-                          : item.status === "ACTIVE"
-                            ? "Inativar"
-                            : "Ativar"}
-                      </button>
-                    ) : null}
-                  </span>
+                  {canUpdate ||
+                  canChangeStatus ||
+                  (config.route === "/students" &&
+                    (canReadProcesses || canReadContracts)) ? (
+                    <ActionMenu label={`Ações de ${config.primary(item)}`}>
+                      {config.route === "/students" && canReadProcesses ? (
+                        <Link href={`/students/${item.id}/processes`}>
+                          Processos
+                        </Link>
+                      ) : null}
+                      {config.route === "/students" && canReadContracts ? (
+                        <Link href={`/students/${item.id}/contracts`}>
+                          Contratos
+                        </Link>
+                      ) : null}
+                      {canUpdate ? (
+                        <Link href={`${config.route}/${item.id}/edit`}>
+                          Editar
+                        </Link>
+                      ) : null}
+                      {canChangeStatus ? (
+                        <button
+                          type="button"
+                          disabled={changingId === item.id}
+                          onClick={() => void toggleStatus(item)}
+                        >
+                          {changingId === item.id
+                            ? "Salvando…"
+                            : item.status === "ACTIVE"
+                              ? "Inativar"
+                              : "Ativar"}
+                        </button>
+                      ) : null}
+                    </ActionMenu>
+                  ) : (
+                    <span className="action-menu-cell action-menu-empty">
+                      —
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

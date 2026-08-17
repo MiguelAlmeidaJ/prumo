@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/auth/auth-context";
+import { ActionMenu } from "@/components/action-menu";
 import { AppShell } from "@/components/app-shell";
 
 type Row = Record<string, unknown> & { id: string };
@@ -24,9 +25,9 @@ type Row = Record<string, unknown> & { id: string };
 function date(value: unknown) {
   return typeof value === "string"
     ? new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(new Date(value))
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(new Date(value))
     : "—";
 }
 
@@ -321,24 +322,27 @@ export function CommunicationTable({
                     </td>
                   ))}
                   <td>
-                    {view === "campaigns" ? (
-                      <Link href={`/communication/campaigns/${row.id}`}>
-                        Detalhes
-                      </Link>
-                    ) : (
-                      <button
-                        disabled={
-                          view === "history"
-                            ? row.status !== "FAILED"
-                            : !["FAILED", "DEAD_LETTER"].includes(
-                              String(row.status),
-                            )
-                        }
-                        onClick={() => void action(row)}
-                      >
-                        {view === "history" ? "Reenviar" : "Reprocessar"}
-                      </button>
-                    )}
+                    <ActionMenu label="Ações do registro de comunicação">
+                      {view === "campaigns" ? (
+                        <Link href={`/communication/campaigns/${row.id}`}>
+                          Ver detalhes
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={
+                            view === "history"
+                              ? row.status !== "FAILED"
+                              : !["FAILED", "DEAD_LETTER"].includes(
+                                  String(row.status),
+                                )
+                          }
+                          onClick={() => void action(row)}
+                        >
+                          {view === "history" ? "Reenviar" : "Reprocessar"}
+                        </button>
+                      )}
+                    </ActionMenu>
                   </td>
                 </tr>
               ))}
@@ -837,9 +841,9 @@ export function NotificationSettings() {
                         currentPreferences.map((item, itemIndex) =>
                           itemIndex === index
                             ? {
-                              ...item,
-                              [field]: event.target.checked,
-                            }
+                                ...item,
+                                [field]: event.target.checked,
+                              }
                             : item,
                         ),
                       )

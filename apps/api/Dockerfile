@@ -14,6 +14,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
 FROM dependencies AS build
+ARG DATABASE_URL=postgresql://prumo:prumo@localhost:5432/prumo_build?schema=public
+ENV DATABASE_URL=$DATABASE_URL
 COPY apps/api apps/api
 COPY packages/contracts packages/contracts
 COPY packages/database packages/database

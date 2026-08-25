@@ -101,6 +101,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @prumo/contracts build
       - run: pnpm --filter @prumo/database prisma:generate
       - run: pnpm --filter @prumo/database exec prisma migrate deploy
       - run: pnpm --filter @prumo/database build
@@ -145,7 +146,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @prumo/mobile typecheck
       - run: pnpm --filter @prumo/mobile lint
-      - run: pnpm --filter @prumo/mobile test
+      - name: Testes do Mobile
+        env:
+          EXPO_PUBLIC_API_URL: ""
+        run: pnpm --filter @prumo/mobile test
 
   containers:
     name: Containers API e Web

@@ -156,14 +156,18 @@ após o uso.
 ## Qualidade e CI
 
 O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) executa em
-cada Pull Request: instalação congelada, validação Prisma, PostgreSQL e Redis
-temporários, build/typecheck/testes de contracts e database, todos os gates da
-API e web, gates do mobile e auditoria de dependências.
+cada Pull Request e em pushes para `main`, `master` ou `release`: instalação
+congelada, validação Prisma, PostgreSQL e Redis temporários,
+build/typecheck/testes de contracts e database, todos os gates da API e web,
+gates do mobile, containers e auditoria de dependências.
 
-Antes de habilitar merges, marque todos os jobs do workflow **Integração
-contínua** como checks obrigatórios na proteção da branch `main`. A auditoria
+Antes de habilitar merges, proteja `main` e `release` e marque todos os jobs do
+workflow **Integração contínua** como checks obrigatórios. O PR `release` →
+`main` é o gate oficial da RC1 e não deve ser integrado enquanto o
+[`STATUS-RELEASE.md`](STATUS-RELEASE.md) tiver bloqueadores P0. A auditoria
 local equivalente é executada com `pnpm audit:security`; a classificação e as
-exceções temporárias ficam em [`docs/AUDITORIA-DEPENDENCIAS.md`](docs/AUDITORIA-DEPENDENCIAS.md).
+exceções temporárias ficam em
+[`docs/AUDITORIA-DEPENDENCIAS.md`](docs/AUDITORIA-DEPENDENCIAS.md).
 
 ## Execução
 
@@ -515,7 +519,9 @@ O estado auditado, as correções, os riscos restantes e a cobertura por módulo
 estão documentados em:
 
 - [`docs/auditoria-funcional.md`](docs/auditoria-funcional.md);
-- [`docs/matriz-funcional.md`](docs/matriz-funcional.md).
+- [`docs/matriz-funcional.md`](docs/matriz-funcional.md);
+- [`docs/checklist-homologacao.md`](docs/checklist-homologacao.md);
+- [`STATUS-RELEASE.md`](STATUS-RELEASE.md).
 
 ## Operação e deploy
 

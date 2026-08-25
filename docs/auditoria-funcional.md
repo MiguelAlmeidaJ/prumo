@@ -1,6 +1,8 @@
 # Auditoria funcional do PRUMO
 
-Data da auditoria: 28 de julho de 2026.
+Data da auditoria original: 28 de julho de 2026.
+
+Revalidação da RC1: 25 de agosto de 2026.
 
 ## Resumo executivo
 
@@ -22,7 +24,7 @@ As correções mais relevantes foram:
 - Swagger fechado por padrão em produção e limite de corpo coerente com upload;
 - redução das vulnerabilidades altas de dependências de 5 para 1.
 
-O banco local está consistente e com 13 migrations aplicadas. O seed foi
+O banco local está consistente e com 19 migrations aplicadas. O seed foi
 executado repetidamente sem duplicar dados. Lint, typecheck, testes e build do
 workspace foram executados contra a infraestrutura local.
 
@@ -166,7 +168,7 @@ depende de credencial e dispositivo externos.
 
 - Prisma format e validate: aprovados.
 - Prisma Client: gerado.
-- Estado final: 13 migrations aplicadas, nenhuma pendente.
+- Estado final: 19 migrations aplicadas, nenhuma pendente.
 - Seed: aprovado em duas execuções consecutivas e idempotentes.
 - Não foi usada migration destrutiva, reset, `db push` ou remoção de dados.
 - Consultas de integridade anteriores às novas FKs encontraram zero relações
@@ -407,8 +409,8 @@ AUD-010 foi mitigado e permanece aberto apenas para a cadeia antiga do Expo.
 - Logs de filas registram IDs técnicos e mensagens de erro, sem tokens, CPF ou
   conteúdo financeiro.
 
-Riscos ainda relevantes: dependência transitiva do Expo, storage local e
-homologação das integrações externas.
+Riscos ainda relevantes: dependência transitiva do Expo e homologação em
+staging do storage S3-compatible e das demais integrações externas.
 
 ## Matriz de permissões
 
@@ -429,13 +431,13 @@ Mais detalhes funcionais estão em `docs/matriz-funcional.md`.
 
 ## Cobertura de testes
 
-Há 31 arquivos de teste:
+Há 41 arquivos de teste:
 
-- API: unitários e 8 suítes E2E reais com PostgreSQL;
+- API: 47 unitários e 10 suítes E2E/104 testes reais com PostgreSQL;
 - web: API client e políticas de navegação tenant/plataforma;
 - mobile: HTTP, sessão segura, deep links, cache/fila e contratos da API;
-- database: 112 invariantes de isolamento/schema;
-- contracts: validação dos schemas compartilhados.
+- database: 115 invariantes de isolamento/schema e bootstrap;
+- contracts: 5 validações dos schemas compartilhados.
 
 Regressões criadas ou ampliadas nesta auditoria:
 
@@ -446,24 +448,26 @@ Regressões criadas ou ampliadas nesta auditoria:
 - duas transições simultâneas do mesmo registro;
 - conta já bloqueada, inativa e sem tenant;
 - duas tentativas simultâneas de consumir o mesmo upload.
+- oito cenários concorrentes de pagamento, parcela, caixa e despesa;
+- bloqueio de chamadas SMTP e Expo reais no ambiente de teste.
 
 Não há E2E automatizado em browser nem teste instrumentado Android/iOS.
 
 ## Resultados de lint, typecheck, testes e build
 
-| Validação                              | Resultado                                                |
-| -------------------------------------- | -------------------------------------------------------- |
-| `pnpm install --frozen-lockfile`       | aprovado                                                 |
-| Prisma format/validate/generate/status | aprovado                                                 |
-| migrations                             | 15 aplicadas, 0 pendentes                                |
-| seed executado duas vezes              | aprovado/idempotente                                     |
-| `pnpm lint`                            | aprovado                                                 |
-| `pnpm typecheck`                       | aprovado                                                 |
-| `pnpm test`                            | aprovado, 257 testes                                     |
-| `pnpm build`                           | aprovado                                                 |
-| Expo Doctor                            | aprovado                                                 |
-| peers                                  | aprovado, nenhum conflito                                |
-| audit de produção                      | 4 altas e 2 moderadas, todas na cadeia Expo/React Native |
+| Validação                              | Resultado                                           |
+| -------------------------------------- | --------------------------------------------------- |
+| `pnpm install --frozen-lockfile`       | aprovado                                            |
+| Prisma format/validate/generate/status | aprovado                                            |
+| migrations                             | 19 aplicadas em banco zerado, 0 pendentes           |
+| seed executado duas vezes              | aprovado/idempotente                                |
+| `pnpm lint`                            | aprovado                                            |
+| `pnpm typecheck`                       | aprovado                                            |
+| `pnpm test`                            | aprovado, 304 testes em 41 arquivos                 |
+| `pnpm build`                           | aprovado                                            |
+| Expo Doctor                            | aprovado                                            |
+| peers                                  | aprovado, nenhum conflito                           |
+| audit de produção                      | 2 altas aceitas e 0 moderadas, na cadeia Metro/Expo |
 
 ## Pendências externas
 
@@ -478,8 +482,8 @@ Não há E2E automatizado em browser nem teste instrumentado Android/iOS.
 ## Riscos restantes
 
 1. Dependência transitiva alta em ferramentas Expo antigas.
-2. Storage local de documentos exige volume privado, backup e política de
-   retenção em produção.
+2. Storage S3-compatible privado está implementado, mas ainda exige homologação
+   externa, backup do bucket e política de retenção.
 3. Fluxos de UI foram validados por build/testes e smoke HTTP, não por automação
    de browser.
 
@@ -489,6 +493,6 @@ Não há E2E automatizado em browser nem teste instrumentado Android/iOS.
    development build.
 2. Adicionar Playwright para os cenários de admin, aluno, instrutor e troca de
    tenant.
-3. Mover documentos para storage privado compatível com produção, com URL
-   assinada curta, antivírus e rotina de retenção.
+3. Homologar o storage privado S3-compatible, incluindo URL assinada curta,
+   indisponibilidade, backup/restore, antivírus e rotina de retenção.
 4. Homologar SMTP e Expo Push em staging com observabilidade e alertas.

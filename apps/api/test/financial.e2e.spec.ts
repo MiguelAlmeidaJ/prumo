@@ -260,7 +260,10 @@ describe("Financeiro multi-tenant (e2e)", () => {
     return contract;
   }
 
-  async function createPendingPayment(code: string) {
+  async function createPendingPayment(
+    code: string,
+    options?: { cashRegisterId?: string },
+  ) {
     const service = await createService(code);
     const contract = await createContract(await createActivePlan(service.id));
     const generated = await request(app.getHttpServer())
@@ -281,7 +284,10 @@ describe("Financeiro multi-tenant (e2e)", () => {
         studentId,
         contractId: contract.id,
         amountCents: installment.balanceCents,
-        paymentMethod: PaymentMethod.PIX,
+        paymentMethod: options?.cashRegisterId
+          ? PaymentMethod.CASH
+          : PaymentMethod.PIX,
+        cashRegisterId: options?.cashRegisterId,
         receivedAt: new Date().toISOString(),
         allocations: [
           {
@@ -604,6 +610,171 @@ describe("Financeiro multi-tenant (e2e)", () => {
       contractAfterRace.status === "CANCELLED" &&
         paymentAfterRace.status === "CONFIRMED",
     ).toBe(false);
+  });
+
+  it("serializa pagamento e cancelamento concorrentes da mesma parcela", async () => {
+    const competing = await createPendingPayment("RACEINSTALLMENT");
+
+    const attempts = await Promise.all([
+      request(app.getHttpServer())
+        .post(`/api/payments/${competing.paymentId}/confirm`)
+        .set(auth()),
+      request(app.getHttpServer())
+        .post(`/api/receivables/${competing.installmentId}/cancel`)
+        .set(auth())
+        .send({ reason: "Cancelamento concorrente da parcela" }),
+    ]);
+
+    expect(attempts.map((response) => response.status).sort()).toEqual([
+      HttpStatus.CREATED,
+      HttpStatus.CONFLICT,
+    ]);
+    const [payment, installment] = await Promise.all([
+      prisma.payment.findUniqueOrThrow({
+        where: { id: competing.paymentId },
+      }),
+      prisma.receivableInstallment.findUniqueOrThrow({
+        where: { id: competing.installmentId },
+      }),
+    ]);
+    expect(
+      payment.status === "CONFIRMED" && installment.status === "CANCELLED",
+    ).toBe(false);
+    expect(installment.amountPaidCents).toBe(
+      payment.status === "CONFIRMED" ? competing.amountCents : 0,
+    );
+  });
+
+  it("serializa fechamento e movimentação concorrentes do caixa", async () => {
+    const opened = await request(app.getHttpServer())
+      .post("/api/cash-registers/open")
+      .set(auth())
+      .send({ unitId, openingBalanceCents: 2_000 })
+      .expect(HttpStatus.CREATED);
+    const cashId = (opened.body as { id: string }).id;
+
+    const attempts = await Promise.all([
+      request(app.getHttpServer())
+        .post(`/api/cash-registers/${cashId}/close`)
+        .set(auth())
+        .send({ countedBalanceCents: 2_000 }),
+      request(app.getHttpServer())
+        .post(`/api/cash-registers/${cashId}/supply`)
+        .set(auth())
+        .send({ amountCents: 500, reason: "Suprimento concorrente" }),
+    ]);
+
+    expect(
+      attempts.every((response) =>
+        [HttpStatus.CREATED, HttpStatus.CONFLICT].includes(response.status),
+      ),
+    ).toBe(true);
+    expect(
+      attempts.some(
+        (response) => response.status === Number(HttpStatus.CREATED),
+      ),
+    ).toBe(true);
+    const cash = await prisma.cashRegister.findUniqueOrThrow({
+      where: { id: cashId },
+    });
+    const supplies = await prisma.cashMovement.count({
+      where: { tenantId, cashRegisterId: cashId, type: "SUPPLY" },
+    });
+    expect(cash.status).toBe("CLOSED");
+    expect(cash.expectedBalanceCents).toBe(2_000 + supplies * 500);
+    expect(supplies).toBeLessThanOrEqual(1);
+    expect(
+      await prisma.cashMovement.count({
+        where: { tenantId, cashRegisterId: cashId, type: "CLOSING" },
+      }),
+    ).toBe(1);
+  });
+
+  it("mantém pagamento em dinheiro consistente com fechamento concorrente", async () => {
+    const opened = await request(app.getHttpServer())
+      .post("/api/cash-registers/open")
+      .set(auth())
+      .send({ unitId, openingBalanceCents: 2_000 })
+      .expect(HttpStatus.CREATED);
+    const cashId = (opened.body as { id: string }).id;
+    const competing = await createPendingPayment("RACECASH", {
+      cashRegisterId: cashId,
+    });
+
+    const attempts = await Promise.all([
+      request(app.getHttpServer())
+        .post(`/api/payments/${competing.paymentId}/confirm`)
+        .set(auth()),
+      request(app.getHttpServer())
+        .post(`/api/cash-registers/${cashId}/close`)
+        .set(auth())
+        .send({ countedBalanceCents: 2_000 }),
+    ]);
+
+    expect(
+      attempts.every((response) =>
+        [HttpStatus.CREATED, HttpStatus.CONFLICT].includes(response.status),
+      ),
+    ).toBe(true);
+    const [cash, payment, installment, incomes] = await Promise.all([
+      prisma.cashRegister.findUniqueOrThrow({ where: { id: cashId } }),
+      prisma.payment.findUniqueOrThrow({
+        where: { id: competing.paymentId },
+      }),
+      prisma.receivableInstallment.findUniqueOrThrow({
+        where: { id: competing.installmentId },
+      }),
+      prisma.cashMovement.count({
+        where: {
+          tenantId,
+          cashRegisterId: cashId,
+          paymentId: competing.paymentId,
+          type: "INCOME",
+        },
+      }),
+    ]);
+    expect(cash.status).toBe("CLOSED");
+    expect(incomes).toBe(payment.status === "CONFIRMED" ? 1 : 0);
+    expect(cash.expectedBalanceCents).toBe(
+      2_000 + (payment.status === "CONFIRMED" ? competing.amountCents : 0),
+    );
+    expect(installment.amountPaidCents).toBe(
+      payment.status === "CONFIRMED" ? competing.amountCents : 0,
+    );
+  });
+
+  it("evita perda de atualização em ajustes concorrentes do recebível", async () => {
+    const competing = await createPendingPayment("RACEADJUSTMENT");
+
+    const attempts = await Promise.all(
+      Array.from({ length: 2 }, (_, index) =>
+        request(app.getHttpServer())
+          .post(`/api/receivables/${competing.installmentId}/adjustment`)
+          .set(auth())
+          .send({
+            amountCents: 500,
+            reason: `Ajuste concorrente ${index + 1}`,
+          }),
+      ),
+    );
+
+    expect(
+      attempts.every((response) =>
+        [HttpStatus.CREATED, HttpStatus.CONFLICT].includes(response.status),
+      ),
+    ).toBe(true);
+    const successful = attempts.filter(
+      (response) => response.status === Number(HttpStatus.CREATED),
+    ).length;
+    expect(successful).toBeGreaterThanOrEqual(1);
+    const installment = await prisma.receivableInstallment.findUniqueOrThrow({
+      where: { id: competing.installmentId },
+    });
+    expect(installment.adjustmentCents).toBe(successful * 500);
+    expect(installment.amountDueCents).toBe(
+      competing.amountCents + successful * 500,
+    );
+    expect(installment.balanceCents).toBe(installment.amountDueCents);
   });
 
   it("serializa geração, estorno, despesa e fechamento concorrentes", async () => {

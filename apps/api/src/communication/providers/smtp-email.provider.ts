@@ -11,10 +11,12 @@ import {
 @Injectable()
 export class SmtpEmailProvider extends EmailProvider {
   readonly name = "smtp";
+  private readonly testMode: boolean;
   private transporter?: Transporter;
 
   constructor(private readonly config: ConfigService) {
     super();
+    this.testMode = config.get<string>("APP_ENV") === "test";
   }
 
   private transport(): Transporter {
@@ -44,6 +46,9 @@ export class SmtpEmailProvider extends EmailProvider {
     if (!input.subject.trim()) {
       throw new Error("O assunto do e-mail é obrigatório.");
     }
+    if (this.testMode) {
+      return { providerMessageId: "test-email" };
+    }
     const rawResult: unknown = await this.transport().sendMail({
       from: this.config.get<string>(
         "EMAIL_FROM",
@@ -60,7 +65,9 @@ export class SmtpEmailProvider extends EmailProvider {
       !("messageId" in rawResult) ||
       typeof rawResult.messageId !== "string"
     ) {
-      throw new Error("O provider SMTP não retornou o identificador da mensagem.");
+      throw new Error(
+        "O provider SMTP não retornou o identificador da mensagem.",
+      );
     }
     return { providerMessageId: rawResult.messageId };
   }

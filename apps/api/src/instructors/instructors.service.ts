@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, RegistryStatus } from "@prisma/client";
+import { Prisma, RegistryStatus } from "@prumo/database";
 import { PaginationQueryDto } from "../common/dto/pagination-query.dto";
 import { RegistryStatusDto } from "../common/dto/registry-status.dto";
 import {

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { RegistryStatus, ScheduleResourceType } from "@prisma/client";
+import { RegistryStatus, ScheduleResourceType } from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "./audit.service";
 import {

@@ -3,7 +3,7 @@ import {
   ExamType,
   LicenseProcessType,
   ProcessStageStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {

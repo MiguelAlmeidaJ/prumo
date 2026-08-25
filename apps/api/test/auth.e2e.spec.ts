@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
-import { MembershipRole, TenantStatus } from "@prisma/client";
+import { MembershipRole, TenantStatus } from "@prumo/database";
 import { hash } from "bcrypt";
 import type { Server } from "node:http";
 import request from "supertest";

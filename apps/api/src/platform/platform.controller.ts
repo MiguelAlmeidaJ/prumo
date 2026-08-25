@@ -15,7 +15,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { PlatformRole } from "@prisma/client";
+import { PlatformRole } from "@prumo/database";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import type {
   AuthenticatedPrincipal,
@@ -39,6 +39,7 @@ import {
   PlanListQueryDto,
   ReasonDto,
   StartSupportSessionDto,
+  SubscriptionActionDto,
   SubscriptionListQueryDto,
   SupportSessionQueryDto,
   TenantListQueryDto,
@@ -54,10 +55,7 @@ import {
   PlatformRolesGuard,
   SupportSessionGuard,
 } from "./platform.guards";
-import {
-  PlatformService,
-  type RequestAuditContext,
-} from "./platform.service";
+import { PlatformService, type RequestAuditContext } from "./platform.service";
 
 type HttpRequest = {
   ip?: string;
@@ -92,10 +90,7 @@ export class PlatformController {
   @Get("dashboard")
   @PlatformPermissions("platform.dashboard.read")
   @ApiOperation({ summary: "Retorna métricas globais agregadas." })
-  dashboard(
-    @Query("from") from?: string,
-    @Query("to") to?: string,
-  ) {
+  dashboard(@Query("from") from?: string, @Query("to") to?: string) {
     return this.service.dashboard(from, to);
   }
 
@@ -193,13 +188,7 @@ export class PlatformController {
     @CurrentPlatformUser() actor: AuthenticatedPrincipal,
     @Req() request: HttpRequest,
   ) {
-    return this.tenantStatus(
-      id,
-      "activate",
-      input,
-      actor,
-      request,
-    );
+    return this.tenantStatus(id, "activate", input, actor, request);
   }
 
   @Post("tenants/:id/suspend")
@@ -221,13 +210,7 @@ export class PlatformController {
     @CurrentPlatformUser() actor: AuthenticatedPrincipal,
     @Req() request: HttpRequest,
   ) {
-    return this.tenantStatus(
-      id,
-      "reactivate",
-      input,
-      actor,
-      request,
-    );
+    return this.tenantStatus(id, "reactivate", input, actor, request);
   }
 
   @Post("tenants/:id/cancel")
@@ -395,10 +378,7 @@ export class PlatformController {
 
   @Post("support-sessions/:id/revoke")
   @PlatformPermissions("platform.support.end")
-  @PlatformRoles(
-    PlatformRole.PLATFORM_ADMIN,
-    PlatformRole.PLATFORM_OWNER,
-  )
+  @PlatformRoles(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OWNER)
   revokeSupport(
     @Param("id") id: string,
     @Body() input: EndSupportSessionDto,
@@ -415,26 +395,32 @@ export class PlatformController {
   }
 
   @Get("plans")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
   @PlatformPermissions("platform.plans.read")
   listPlans(@Query() query: PlanListQueryDto) {
     return this.service.listPlans(query);
   }
 
   @Post("plans")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
   @PlatformPermissions("platform.plans.manage")
   createPlan(
     @Body() input: CreatePlatformPlanDto,
     @CurrentPlatformUser() actor: AuthenticatedPrincipal,
     @Req() request: HttpRequest,
   ) {
-    return this.service.createPlan(
-      input,
-      actor,
-      requestAuditContext(request),
-    );
+    return this.service.createPlan(input, actor, requestAuditContext(request));
+  }
+
+  @Get("plans/:id")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
+  @PlatformPermissions("platform.plans.read")
+  getPlan(@Param("id") id: string) {
+    return this.service.getPlan(id);
   }
 
   @Patch("plans/:id")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
   @PlatformPermissions("platform.plans.manage")
   updatePlan(
     @Param("id") id: string,
@@ -451,12 +437,14 @@ export class PlatformController {
   }
 
   @Get("subscriptions")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
   @PlatformPermissions("platform.subscriptions.read")
   listSubscriptions(@Query() query: SubscriptionListQueryDto) {
     return this.service.listSubscriptions(query);
   }
 
   @Post("subscriptions")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
   @PlatformPermissions("platform.subscriptions.manage")
   createSubscription(
     @Body() input: CreateSubscriptionDto,
@@ -470,7 +458,15 @@ export class PlatformController {
     );
   }
 
+  @Get("subscriptions/:id")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
+  @PlatformPermissions("platform.subscriptions.read")
+  getSubscription(@Param("id") id: string) {
+    return this.service.getSubscription(id);
+  }
+
   @Patch("subscriptions/:id")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
   @PlatformPermissions("platform.subscriptions.manage")
   updateSubscription(
     @Param("id") id: string,
@@ -480,6 +476,60 @@ export class PlatformController {
   ) {
     return this.service.updateSubscription(
       id,
+      input,
+      actor,
+      requestAuditContext(request),
+    );
+  }
+
+  @Post("subscriptions/:id/suspend")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
+  @PlatformPermissions("platform.subscriptions.manage")
+  suspendSubscription(
+    @Param("id") id: string,
+    @Body() input: SubscriptionActionDto,
+    @CurrentPlatformUser() actor: AuthenticatedPrincipal,
+    @Req() request: HttpRequest,
+  ) {
+    return this.service.changeSubscriptionStatus(
+      id,
+      "suspend",
+      input,
+      actor,
+      requestAuditContext(request),
+    );
+  }
+
+  @Post("subscriptions/:id/reactivate")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
+  @PlatformPermissions("platform.subscriptions.manage")
+  reactivateSubscription(
+    @Param("id") id: string,
+    @Body() input: SubscriptionActionDto,
+    @CurrentPlatformUser() actor: AuthenticatedPrincipal,
+    @Req() request: HttpRequest,
+  ) {
+    return this.service.changeSubscriptionStatus(
+      id,
+      "reactivate",
+      input,
+      actor,
+      requestAuditContext(request),
+    );
+  }
+
+  @Post("subscriptions/:id/cancel")
+  @PlatformRoles(PlatformRole.PLATFORM_OWNER)
+  @PlatformPermissions("platform.subscriptions.manage")
+  cancelSubscription(
+    @Param("id") id: string,
+    @Body() input: SubscriptionActionDto,
+    @CurrentPlatformUser() actor: AuthenticatedPrincipal,
+    @Req() request: HttpRequest,
+  ) {
+    return this.service.changeSubscriptionStatus(
+      id,
+      "cancel",
       input,
       actor,
       requestAuditContext(request),
@@ -520,12 +570,7 @@ export class PlatformController {
 
   private tenantStatus(
     id: string,
-    action:
-      | "activate"
-      | "suspend"
-      | "reactivate"
-      | "cancel"
-      | "archive",
+    action: "activate" | "suspend" | "reactivate" | "cancel" | "archive",
     input: CriticalActionDto,
     actor: AuthenticatedPrincipal,
     request: HttpRequest,

@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/auth/auth-context";
+import { ActionMenu } from "@/components/action-menu";
 import { AppShell } from "@/components/app-shell";
 import { ApiError } from "@/lib/auth-api";
 
@@ -394,9 +395,10 @@ export function ServicesList() {
               <span>{label(item.category)}</span>
               <strong>{money(item.defaultPriceCents)}</strong>
               <Badge value={item.active ? "ACTIVE" : "INACTIVE"} />
-              <div className="registry-actions">
+              <ActionMenu label={`Ações do serviço ${item.name}`}>
                 <Link href={`/financial/services/${item.id}/edit`}>Editar</Link>
                 <button
+                  type="button"
                   onClick={async () => {
                     await request(`/services/${item.id}/status`, {
                       method: "PATCH",
@@ -407,7 +409,7 @@ export function ServicesList() {
                 >
                   {item.active ? "Inativar" : "Ativar"}
                 </button>
-              </div>
+              </ActionMenu>
             </div>
           ))}
         </div>
@@ -1116,42 +1118,49 @@ export function PaymentsList() {
               {money(item.amountCents - item.refundedAmountCents)}
             </strong>
             <Badge value={item.status} />
-            <div className="registry-actions">
-              {item.status === "PENDING" ? (
-                <button
-                  onClick={async () => {
-                    if (confirm("Confirmar este pagamento?")) {
-                      await request(`/payments/${item.id}/confirm`, {
-                        method: "POST",
-                      });
-                      await load();
-                    }
-                  }}
-                >
-                  Confirmar
-                </button>
-              ) : null}
-              {["CONFIRMED", "PARTIALLY_REFUNDED"].includes(item.status) ? (
-                <button
-                  onClick={async () => {
-                    const amount = Number(prompt("Valor do estorno (R$):"));
-                    const reason = prompt("Motivo:");
-                    if (amount && reason && confirm("Confirmar estorno?")) {
-                      await request(`/payments/${item.id}/refunds`, {
-                        method: "POST",
-                        body: JSON.stringify({
-                          amountCents: Math.round(amount * 100),
-                          reason,
-                        }),
-                      });
-                      await load();
-                    }
-                  }}
-                >
-                  Estornar
-                </button>
-              ) : null}
-            </div>
+            {item.status === "PENDING" ||
+            ["CONFIRMED", "PARTIALLY_REFUNDED"].includes(item.status) ? (
+              <ActionMenu label={`Ações do pagamento de ${item.student.name}`}>
+                {item.status === "PENDING" ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm("Confirmar este pagamento?")) {
+                        await request(`/payments/${item.id}/confirm`, {
+                          method: "POST",
+                        });
+                        await load();
+                      }
+                    }}
+                  >
+                    Confirmar
+                  </button>
+                ) : null}
+                {["CONFIRMED", "PARTIALLY_REFUNDED"].includes(item.status) ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const amount = Number(prompt("Valor do estorno (R$):"));
+                      const reason = prompt("Motivo:");
+                      if (amount && reason && confirm("Confirmar estorno?")) {
+                        await request(`/payments/${item.id}/refunds`, {
+                          method: "POST",
+                          body: JSON.stringify({
+                            amountCents: Math.round(amount * 100),
+                            reason,
+                          }),
+                        });
+                        await load();
+                      }
+                    }}
+                  >
+                    Estornar
+                  </button>
+                ) : null}
+              </ActionMenu>
+            ) : (
+              <span className="action-menu-cell action-menu-empty">—</span>
+            )}
           </div>
         ))}
       </section>
@@ -1568,50 +1577,49 @@ export function ExpensesList() {
             <span>{date(item.dueDate)}</span>
             <strong>{money(item.amountCents)}</strong>
             <Badge value={item.status} />
-            <div className="registry-actions">
-              {["PENDING", "OVERDUE"].includes(item.status) ? (
-                <>
-                  <button
-                    onClick={async () => {
-                      const method = prompt(
-                        "Forma: PIX, CASH, TRANSFER…",
-                        "PIX",
-                      )?.toUpperCase();
-                      if (
-                        method &&
-                        confirm("Confirmar pagamento da despesa?")
-                      ) {
-                        await request(`/expenses/${item.id}/pay`, {
-                          method: "POST",
-                          body: JSON.stringify({
-                            paymentMethod: method,
-                            cashRegisterId:
-                              method === "CASH" ? cash?.id : undefined,
-                          }),
-                        });
-                        await load();
-                      }
-                    }}
-                  >
-                    Pagar
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const reason = prompt("Motivo do cancelamento:");
-                      if (reason && confirm("Cancelar despesa?")) {
-                        await request(`/expenses/${item.id}/cancel`, {
-                          method: "POST",
-                          body: JSON.stringify({ reason }),
-                        });
-                        await load();
-                      }
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                </>
-              ) : null}
-            </div>
+            {["PENDING", "OVERDUE"].includes(item.status) ? (
+              <ActionMenu label={`Ações da despesa ${item.description}`}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const method = prompt(
+                      "Forma: PIX, CASH, TRANSFER…",
+                      "PIX",
+                    )?.toUpperCase();
+                    if (method && confirm("Confirmar pagamento da despesa?")) {
+                      await request(`/expenses/${item.id}/pay`, {
+                        method: "POST",
+                        body: JSON.stringify({
+                          paymentMethod: method,
+                          cashRegisterId:
+                            method === "CASH" ? cash?.id : undefined,
+                        }),
+                      });
+                      await load();
+                    }
+                  }}
+                >
+                  Pagar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const reason = prompt("Motivo do cancelamento:");
+                    if (reason && confirm("Cancelar despesa?")) {
+                      await request(`/expenses/${item.id}/cancel`, {
+                        method: "POST",
+                        body: JSON.stringify({ reason }),
+                      });
+                      await load();
+                    }
+                  }}
+                >
+                  Cancelar
+                </button>
+              </ActionMenu>
+            ) : (
+              <span className="action-menu-cell action-menu-empty">—</span>
+            )}
           </div>
         ))}
       </section>

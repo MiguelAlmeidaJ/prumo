@@ -24,6 +24,13 @@ import { PlatformService } from "./platform.service";
     PlatformRateLimitGuard,
     SupportSessionGuard,
   ],
-  exports: [PlatformEntitlementService, SupportSessionGuard],
+  exports: [
+    PlatformEntitlementService,
+    PlatformAuditService,
+    PlatformPermissionsGuard,
+    PlatformRateLimitGuard,
+    PlatformRolesGuard,
+    SupportSessionGuard,
+  ],
 })
 export class PlatformModule {}

@@ -10,7 +10,7 @@ import {
   Prisma,
   ProcessStageStatus,
   RegistryStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { nullable } from "../common/registration.utils";
 import { PrismaService } from "../database/prisma.service";
 import { DomainEventService } from "../communication/domain-event.service";

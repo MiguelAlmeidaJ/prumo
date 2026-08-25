@@ -2,7 +2,10 @@
   "name": "@prumo/contracts",
   "version": "0.1.0",
   "private": true,
-  "main": "./src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

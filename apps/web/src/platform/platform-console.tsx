@@ -2,13 +2,9 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/auth/auth-context";
+import { ActionMenu } from "@/components/action-menu";
 
 type View =
   | "dashboard"
@@ -172,9 +168,11 @@ function DataTable({
               ))}
               {detailBase && row.id ? (
                 <td>
-                  <Link href={`${detailBase}/${String(row.id)}`}>
-                    Abrir
-                  </Link>
+                  <ActionMenu label="Ações do registro">
+                    <Link href={`${detailBase}/${String(row.id)}`}>
+                      Abrir detalhes
+                    </Link>
+                  </ActionMenu>
                 </td>
               ) : null}
             </tr>
@@ -235,15 +233,39 @@ function TenantForm() {
         </div>
       </header>
       <form className="platform-form platform-card" onSubmit={submit}>
-        <label>Nome<input name="name" required minLength={2} /></label>
-        <label>Slug<input name="slug" required minLength={2} /></label>
-        <label>Documento<input name="document" /></label>
-        <label>Código do plano<input name="planCode" placeholder="PRO" /></label>
-        <label>Chave idempotente<input name="provisioningKey" /></label>
+        <label>
+          Nome
+          <input name="name" required minLength={2} />
+        </label>
+        <label>
+          Slug
+          <input name="slug" required minLength={2} />
+        </label>
+        <label>
+          Documento
+          <input name="document" />
+        </label>
+        <label>
+          Código do plano
+          <input name="planCode" placeholder="PRO" />
+        </label>
+        <label>
+          Chave idempotente
+          <input name="provisioningKey" />
+        </label>
         <h2>Proprietário opcional</h2>
-        <label>Nome<input name="ownerName" /></label>
-        <label>E-mail<input name="ownerEmail" type="email" /></label>
-        <label>Senha inicial<input name="ownerPassword" type="password" minLength={12} /></label>
+        <label>
+          Nome
+          <input name="ownerName" />
+        </label>
+        <label>
+          E-mail
+          <input name="ownerEmail" type="email" />
+        </label>
+        <label>
+          Senha inicial
+          <input name="ownerPassword" type="password" minLength={12} />
+        </label>
         <button className="platform-primary" disabled={loading}>
           {loading ? "Provisionando…" : "Criar autoescola"}
         </button>
@@ -256,7 +278,9 @@ function TenantForm() {
 export function PlatformConsole({ view }: { view: View }) {
   const { request, session } = useAuth();
   const params = useParams<{ id?: string }>();
-  const [payload, setPayload] = useState<JsonRecord | PageResult | JsonRecord[] | null>(null);
+  const [payload, setPayload] = useState<
+    JsonRecord | PageResult | JsonRecord[] | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(view !== "tenant-new");
   const [search, setSearch] = useState("");
@@ -271,9 +295,9 @@ export function PlatformConsole({ view }: { view: View }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await request<
-        JsonRecord | PageResult | JsonRecord[]
-      >(`${path}${extraQuery}`);
+      const data = await request<JsonRecord | PageResult | JsonRecord[]>(
+        `${path}${extraQuery}`,
+      );
       setPayload(data);
     } catch (loadError) {
       setError(
@@ -320,9 +344,7 @@ export function PlatformConsole({ view }: { view: View }) {
       ? payload.data
       : [];
   const record =
-    payload && !Array.isArray(payload) && !("data" in payload)
-      ? payload
-      : null;
+    payload && !Array.isArray(payload) && !("data" in payload) ? payload : null;
 
   async function criticalTenantAction(action: string) {
     if (!params.id) return;
@@ -343,9 +365,7 @@ export function PlatformConsole({ view }: { view: View }) {
       await load();
     } catch (actionError) {
       setError(
-        actionError instanceof Error
-          ? actionError.message
-          : "Ação recusada.",
+        actionError instanceof Error ? actionError.message : "Ação recusada.",
       );
     }
   }
@@ -370,9 +390,7 @@ export function PlatformConsole({ view }: { view: View }) {
       await load();
     } catch (actionError) {
       setError(
-        actionError instanceof Error
-          ? actionError.message
-          : "Ação recusada.",
+        actionError instanceof Error ? actionError.message : "Ação recusada.",
       );
     }
   }
@@ -444,18 +462,15 @@ export function PlatformConsole({ view }: { view: View }) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
-      const support = await request<JsonRecord>(
-        "/platform/support-sessions",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            tenantId: form.get("tenantId"),
-            reason: form.get("reason"),
-            ticketReference: form.get("ticketReference") || undefined,
-            durationMinutes: Number(form.get("durationMinutes") || 30),
-          }),
-        },
-      );
+      const support = await request<JsonRecord>("/platform/support-sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          tenantId: form.get("tenantId"),
+          reason: form.get("reason"),
+          ticketReference: form.get("ticketReference") || undefined,
+          durationMinutes: Number(form.get("durationMinutes") || 30),
+        }),
+      });
       window.sessionStorage.setItem(
         "prumo.support.session",
         JSON.stringify(support),
@@ -636,27 +651,65 @@ export function PlatformConsole({ view }: { view: View }) {
       session?.platform?.permissions.includes("platform.support.start") ? (
         <form className="platform-form platform-card" onSubmit={startSupport}>
           <h2>Iniciar acesso assistido</h2>
-          <label>ID do tenant<input name="tenantId" required /></label>
-          <label>Motivo<input name="reason" required minLength={5} /></label>
-          <label>Ticket<input name="ticketReference" /></label>
-          <label>Duração (min)<input name="durationMinutes" type="number" defaultValue={30} min={5} max={120} /></label>
+          <label>
+            ID do tenant
+            <input name="tenantId" required />
+          </label>
+          <label>
+            Motivo
+            <input name="reason" required minLength={5} />
+          </label>
+          <label>
+            Ticket
+            <input name="ticketReference" />
+          </label>
+          <label>
+            Duração (min)
+            <input
+              name="durationMinutes"
+              type="number"
+              defaultValue={30}
+              min={5}
+              max={120}
+            />
+          </label>
           <button className="platform-primary">Iniciar sessão</button>
         </form>
       ) : null}
 
       {view === "plans" &&
       session?.platform?.permissions.includes("platform.plans.manage") ? (
-        <form className="platform-inline-form platform-card" onSubmit={createPlan}>
+        <form
+          className="platform-inline-form platform-card"
+          onSubmit={createPlan}
+        >
           <input name="code" placeholder="Código" required />
           <input name="name" placeholder="Nome" required />
-          <input name="monthlyPriceCents" type="number" placeholder="Mensal (centavos)" required />
+          <input
+            name="monthlyPriceCents"
+            type="number"
+            placeholder="Mensal (centavos)"
+            required
+          />
           <button className="platform-primary">Criar plano</button>
         </form>
       ) : null}
 
       {view === "settings" ? (
-        <form className="platform-inline-form platform-card" onSubmit={saveSettings}>
-          <label>Duração máxima do suporte<input name="duration" type="number" min={5} max={120} defaultValue={30} /></label>
+        <form
+          className="platform-inline-form platform-card"
+          onSubmit={saveSettings}
+        >
+          <label>
+            Duração máxima do suporte
+            <input
+              name="duration"
+              type="number"
+              min={5}
+              max={120}
+              defaultValue={30}
+            />
+          </label>
           <button className="platform-primary">Salvar</button>
         </form>
       ) : null}

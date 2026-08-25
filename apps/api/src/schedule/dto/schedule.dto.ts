@@ -5,7 +5,7 @@ import {
   LessonStatus,
   ScheduleResourceType,
   Weekday,
-} from "@prisma/client";
+} from "@prumo/database";
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import {

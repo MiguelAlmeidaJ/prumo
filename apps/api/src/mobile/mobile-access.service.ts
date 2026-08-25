@@ -4,10 +4,11 @@ import {
   Injectable,
 } from "@nestjs/common";
 import {
+  isPrismaKnownRequestError,
   MembershipRole,
   MobileOperationStatus,
   Prisma,
-} from "@prisma/client";
+} from "@prumo/database";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { PrismaService } from "../database/prisma.service";
 
@@ -197,7 +198,7 @@ export class MobileAccessService {
         });
       } catch (error) {
         if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
+          isPrismaKnownRequestError(error) &&
           error.code === "P2002"
         ) {
           throw new ConflictException("A operação já está em processamento.");

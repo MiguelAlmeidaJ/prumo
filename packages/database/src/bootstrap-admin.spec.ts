@@ -2,7 +2,7 @@ import {
   AuditActorType,
   PlatformRole,
   type PrismaClient,
-} from "@prisma/client";
+} from "./index";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bootstrapAdmin } from "../prisma/seed/bootstrap-admin";
 

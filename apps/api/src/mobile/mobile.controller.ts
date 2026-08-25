@@ -9,11 +9,9 @@ import {
   Post,
   Put,
   Query,
-  StreamableFile,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { createReadStream } from "node:fs";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -207,11 +205,7 @@ export class MobileController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    const file = await this.student.downloadInfo(user, id);
-    return new StreamableFile(createReadStream(file.path), {
-      type: file.mimeType,
-      disposition: `attachment; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
-    });
+    return this.student.downloadInfo(user, id);
   }
 
   @Get("student/profile")

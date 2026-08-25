@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { useAuth } from "@/auth/auth-context";
+import { BrandLogo } from "./brand-logo";
 import {
   hasTenantPermission,
   isTenantNavigationItemActive,
@@ -93,10 +94,12 @@ export function useTenantSidebarState() {
 function SidebarBrand({ collapsed }: { collapsed: boolean }) {
   return (
     <Link className="sidebar-brand" href="/" aria-label="Prumo — visão geral">
-      <span className="sidebar-brand__mark" aria-hidden="true">
-        P
-      </span>
-      {!collapsed ? <span className="sidebar-brand__word">PRUMO</span> : null}
+      <BrandLogo
+        alt=""
+        className="sidebar-brand__logo"
+        symbolOnly={collapsed}
+        variant="white"
+      />
     </Link>
   );
 }

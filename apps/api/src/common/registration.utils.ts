@@ -1,5 +1,5 @@
 import { ConflictException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { isPrismaKnownRequestError } from "@prumo/database";
 
 export function digits(value: unknown): unknown {
   return typeof value === "string" ? value.replace(/\D/g, "") : value;
@@ -27,7 +27,7 @@ export function throwConflict(
   message: string,
 ): never {
   if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
+    isPrismaKnownRequestError(error) &&
     error.code === "P2002"
   ) {
     throw new ConflictException(message);

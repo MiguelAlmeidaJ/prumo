@@ -1,0 +1,76 @@
+groups:
+  - name: prumo-api
+    rules:
+      - alert: PrumoApiForaDoAr
+        expr: up{job="prumo-api"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "API Prumo indisponível" }
+
+      - alert: PrumoPostgresIndisponivel
+        expr: prumo_dependency_up{component="postgres"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "API sem acesso ao PostgreSQL" }
+
+      - alert: PrumoRedisIndisponivel
+        expr: prumo_dependency_up{component="redis"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "API sem acesso ao Redis" }
+
+      - alert: PrumoStorageIndisponivel
+        expr: prumo_dependency_up{component="storage"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "Storage privado de documentos indisponível" }
+
+      - alert: PrumoFilaAcumulando
+        expr: sum(prumo_queue_jobs{state="waiting"}) > 100
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Filas Prumo acumulando jobs" }
+
+      - alert: PrumoJobsFalhando
+        expr: sum(prumo_queue_jobs{state="failed"}) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Jobs falhos nas filas Prumo" }
+
+      - alert: PrumoErros5xxElevados
+        expr: >-
+          sum(rate(prumo_http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(prumo_http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          { summary: "Mais de 5% das requisições da API retornam 5xx" }
+
+      - alert: PrumoLatenciaP95Elevada
+        expr: >-
+          histogram_quantile(0.95,
+            sum by (le) (rate(prumo_http_request_duration_seconds_bucket[5m])))
+          > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Latência p95 da API acima de 1 segundo" }
+
+      - alert: PrumoMemoriaElevada
+        expr: prumo_process_resident_memory_bytes > 450 * 1024 * 1024
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "API próxima do limite de memória" }
+
+      - alert: PrumoCpuElevada
+        expr: rate(prumo_process_cpu_seconds_total[5m]) > 0.8
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "Uso sustentado de CPU elevado na API" }
+
+      - alert: PrumoConexoesPostgresElevadas
+        expr: prumo_postgres_connections > 80
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Número elevado de conexões PostgreSQL" }

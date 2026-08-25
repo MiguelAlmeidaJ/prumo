@@ -4,7 +4,7 @@ import {
   Prisma,
   RegistryStatus,
   StudentProcessStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { DomainEventService } from "../communication/domain-event.service";
 import { PaginationQueryDto } from "../common/dto/pagination-query.dto";

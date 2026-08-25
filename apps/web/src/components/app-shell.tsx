@@ -6,6 +6,7 @@ import { useEffect, type PropsWithChildren } from "react";
 
 import { useAuth } from "@/auth/auth-context";
 import { NotificationBell } from "@/communication/notification-bell";
+import { BrandLogo } from "./brand-logo";
 import { canAccessTenantPath, hasTenantPermission } from "./tenant-navigation";
 import {
   TenantMobileNavigation,
@@ -15,11 +16,12 @@ import {
 
 function Brand() {
   return (
-    <Link className="brand brand--compact app-brand-link" href="/">
-      <span className="brand__mark" aria-hidden="true">
-        P
-      </span>
-      <span className="brand__word">PRUMO</span>
+    <Link
+      className="brand brand--compact app-brand-link"
+      href="/"
+      aria-label="Prumo"
+    >
+      <BrandLogo alt="" className="brand__logo" variant="white" />
     </Link>
   );
 }

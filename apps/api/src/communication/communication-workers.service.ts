@@ -1,5 +1,5 @@
 import { Injectable, OnApplicationBootstrap } from "@nestjs/common";
-import { NotificationChannel } from "@prisma/client";
+import { NotificationChannel } from "@prumo/database";
 import type { Job } from "bullmq";
 import { CampaignsService } from "./campaigns.service";
 import { DeliveryChannelService } from "./delivery-channel.service";

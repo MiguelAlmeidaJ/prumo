@@ -17,6 +17,8 @@ function serviceWithUsage(usage: {
           maxUsers: 1,
           maxStudents: 1,
           maxUnits: 1,
+          maxInstructors: 1,
+          maxVehicles: 1,
           maxStorageBytes: null,
           features: { FINANCIAL: true, MOBILE_APP: false },
         },
@@ -25,6 +27,8 @@ function serviceWithUsage(usage: {
     membership: { count: vi.fn().mockResolvedValue(usage.memberships) },
     student: { count: vi.fn().mockResolvedValue(usage.students) },
     schoolUnit: { count: vi.fn().mockResolvedValue(usage.units) },
+    instructor: { count: vi.fn().mockResolvedValue(0) },
+    vehicle: { count: vi.fn().mockResolvedValue(0) },
   };
   return new PlatformEntitlementService(prisma as never);
 }
@@ -47,11 +51,9 @@ describe("PlatformEntitlementService", () => {
       students: 0,
       units: 0,
     });
-    await expect(
-      service.hasFeature("tenant", "FINANCIAL"),
-    ).resolves.toBe(true);
-    await expect(
-      service.hasFeature("tenant", "MOBILE_APP"),
-    ).resolves.toBe(false);
+    await expect(service.hasFeature("tenant", "FINANCIAL")).resolves.toBe(true);
+    await expect(service.hasFeature("tenant", "MOBILE_APP")).resolves.toBe(
+      false,
+    );
   });
 });

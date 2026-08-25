@@ -36,6 +36,11 @@ export const platformPermissionValues = [
   "platform.audit.read",
   "platform.health.read",
   "platform.settings.manage",
+  "system.migrations.read",
+  "system.migrations.create",
+  "system.migrations.validate",
+  "system.migrations.execute",
+  "system.migrations.rollback",
 ] as const;
 
 export const permissionValues = [
@@ -368,6 +373,144 @@ export interface PlatformAccessSummary {
   role: Exclude<PlatformRole, "USER">;
   permissions: PlatformPermission[];
   mfaEnabled: boolean;
+}
+
+export const platformPlanStatusValues = [
+  "DRAFT",
+  "ACTIVE",
+  "INACTIVE",
+  "ARCHIVED",
+] as const;
+
+export const tenantSubscriptionStatusValues = [
+  "DRAFT",
+  "TRIALING",
+  "ACTIVE",
+  "SUSPENDED",
+  "CANCELLED",
+  "EXPIRED",
+] as const;
+
+export const commercialBillingIntervalValues = [
+  "MONTHLY",
+  "QUARTERLY",
+  "SEMIANNUAL",
+  "ANNUAL",
+] as const;
+
+export type PlatformPlanStatus = (typeof platformPlanStatusValues)[number];
+export type TenantSubscriptionStatus =
+  (typeof tenantSubscriptionStatusValues)[number];
+export type CommercialBillingInterval =
+  (typeof commercialBillingIntervalValues)[number];
+
+export interface PlatformPlanLimits {
+  maxUnits: number | null;
+  maxUsers: number | null;
+  maxInstructors: number | null;
+  maxStudents: number | null;
+  maxVehicles: number | null;
+  maxStorageBytes: string | null;
+}
+
+export interface PlatformPlanSummary extends PlatformPlanLimits {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  status: PlatformPlanStatus;
+  featured: boolean;
+  displayOrder: number;
+  defaultBillingCycle: CommercialBillingInterval | "MANUAL";
+  monthlyPriceCents: number;
+  annualPriceCents: number | null;
+  features: Record<string, boolean>;
+  subscriberCount: number;
+  activeSubscriberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlatformPlansMetrics {
+  activePlans: number;
+  subscribingTenants: number;
+  contractedMonthlyValueCents: number;
+  averageTicketCents: number;
+}
+
+export interface PlatformPlanListResponse extends PaginatedResponse<PlatformPlanSummary> {
+  summary: PlatformPlansMetrics;
+}
+
+export interface PlatformTenantOption {
+  id: string;
+  name: string;
+  slug: string;
+  document: string | null;
+  status: string;
+}
+
+export interface PlatformSubscriptionSummary {
+  id: string;
+  status: TenantSubscriptionStatus | "PAST_DUE";
+  billingCycle: CommercialBillingInterval | "MANUAL";
+  contractedPriceCents: number;
+  startsAt: string;
+  endsAt: string | null;
+  trialEndsAt: string | null;
+  currentPeriodStartsAt: string;
+  currentPeriodEndsAt: string;
+  contractNumber: string | null;
+  notes: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  tenant: PlatformTenantOption;
+  plan: Pick<
+    PlatformPlanSummary,
+    "id" | "code" | "name" | "status" | "monthlyPriceCents" | "annualPriceCents"
+  >;
+}
+
+export interface PlatformSubscriptionsMetrics {
+  activeSubscriptions: number;
+  trialingSubscriptions: number;
+  suspendedSubscriptions: number;
+  contractedMonthlyValueCents: number;
+}
+
+export interface PlatformSubscriptionListResponse extends PaginatedResponse<PlatformSubscriptionSummary> {
+  summary: PlatformSubscriptionsMetrics;
+}
+
+export interface PlatformSubscriptionHistoryEntry {
+  id: string;
+  action: string;
+  reason: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  createdAt: string;
+  platformUser: { id: string; name: string; email: string } | null;
+}
+
+export interface PlatformSubscriptionUsage {
+  units: number;
+  users: number;
+  instructors: number;
+  activeStudents: number;
+}
+
+export interface PlatformSubscriptionDetail extends Omit<
+  PlatformSubscriptionSummary,
+  "plan"
+> {
+  plan: PlatformSubscriptionSummary["plan"] &
+    Pick<
+      PlatformPlanLimits,
+      "maxUnits" | "maxUsers" | "maxInstructors" | "maxStudents" | "maxVehicles"
+    >;
+  usage: PlatformSubscriptionUsage;
+  history: PlatformSubscriptionHistoryEntry[];
 }
 
 export type RegistryStatus = "ACTIVE" | "INACTIVE";

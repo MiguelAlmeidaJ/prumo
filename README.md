@@ -112,9 +112,30 @@ pnpm db:seed:demo
 O seed demo cria ou atualiza:
 
 - tenant: **Autoescola Demonstração**;
-- usuário: `admin@prumo.local`;
+- usuários de gestão: `admin@prumo.local`, `secretaria@prumo.local` e
+  `financeiro@prumo.local`;
+- acessos mobile: `mariana@exemplo.local`, `lucas.aluno@prumo.local`,
+  `carlos@exemplo.local` e `ana.instrutora@prumo.local`;
 - senha local padrão: `PrumoDev@123`;
-- role: `TENANT_OWNER`.
+- cadastros, processos em diferentes etapas, agenda, exames, contratos,
+  parcelas, pagamentos, despesas, caixa, notificações e campanhas;
+- uma auditoria automática de cobertura ao final da execução.
+
+Para validar novamente a cobertura sem alterar os dados:
+
+```powershell
+pnpm db:seed:demo:verify
+```
+
+Com a API em execução, o smoke test autentica os perfis de gestão, instrutor e
+aluno, valida seus dashboards e consulta os principais módulos:
+
+```powershell
+pnpm demo:smoke
+```
+
+Use `DEMO_API_URL` se a API não estiver em `http://localhost:3333/api` e
+`SEED_ADMIN_PASSWORD` caso o seed tenha sido criado com outra senha.
 
 Não use a senha padrão fora do desenvolvimento. Em produção,
 o seed demo não pode ser executado.
@@ -135,14 +156,18 @@ após o uso.
 ## Qualidade e CI
 
 O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) executa em
-cada Pull Request: instalação congelada, validação Prisma, PostgreSQL e Redis
-temporários, build/typecheck/testes de contracts e database, todos os gates da
-API e web, gates do mobile e auditoria de dependências.
+cada Pull Request e em pushes para `main`, `master` ou `release`: instalação
+congelada, validação Prisma, PostgreSQL e Redis temporários,
+build/typecheck/testes de contracts e database, todos os gates da API e web,
+gates do mobile, containers e auditoria de dependências.
 
-Antes de habilitar merges, marque todos os jobs do workflow **Integração
-contínua** como checks obrigatórios na proteção da branch `main`. A auditoria
+Antes de habilitar merges, proteja `main` e `release` e marque todos os jobs do
+workflow **Integração contínua** como checks obrigatórios. O PR `release` →
+`main` é o gate oficial da RC1 e não deve ser integrado enquanto o
+[`STATUS-RELEASE.md`](STATUS-RELEASE.md) tiver bloqueadores P0. A auditoria
 local equivalente é executada com `pnpm audit:security`; a classificação e as
-exceções temporárias ficam em [`docs/AUDITORIA-DEPENDENCIAS.md`](docs/AUDITORIA-DEPENDENCIAS.md).
+exceções temporárias ficam em
+[`docs/AUDITORIA-DEPENDENCIAS.md`](docs/AUDITORIA-DEPENDENCIAS.md).
 
 ## Execução
 
@@ -494,4 +519,15 @@ O estado auditado, as correções, os riscos restantes e a cobertura por módulo
 estão documentados em:
 
 - [`docs/auditoria-funcional.md`](docs/auditoria-funcional.md);
-- [`docs/matriz-funcional.md`](docs/matriz-funcional.md).
+- [`docs/matriz-funcional.md`](docs/matriz-funcional.md);
+- [`docs/checklist-homologacao.md`](docs/checklist-homologacao.md);
+- [`STATUS-RELEASE.md`](STATUS-RELEASE.md).
+
+## Operação e deploy
+
+Containerização, storage S3 privado, probes, métricas, alertas e a ordem de
+publicação estão em [`docs/OPERACAO-STAGING.md`](docs/OPERACAO-STAGING.md).
+A configuração dos domínios oficiais, TLS e o procedimento de publicação estão
+em [`docs/OPERACAO-PRODUCAO.md`](docs/OPERACAO-PRODUCAO.md).
+A classificação das dependências vulneráveis permanece em
+[`docs/AUDITORIA-DEPENDENCIAS.md`](docs/AUDITORIA-DEPENDENCIAS.md).

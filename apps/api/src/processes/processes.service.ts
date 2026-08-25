@@ -10,7 +10,7 @@ import {
   ProcessStageStatus,
   ProcessStageType,
   RegistryStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import {
   nullable,
   optionalDate,

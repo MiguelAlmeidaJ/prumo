@@ -1,5 +1,3 @@
-import { isAbsolute } from "node:path";
-
 export type AppEnvironment = "development" | "test" | "staging" | "production";
 
 const DEPLOYED_ENVIRONMENTS = new Set<AppEnvironment>([
@@ -158,13 +156,56 @@ function validateStorage(
   environment: Record<string, unknown>,
   errors: string[],
 ) {
-  const uploadDir =
-    valueOf(environment, "UPLOAD_DIR") ||
-    valueOf(environment, "MOBILE_UPLOAD_DIR");
-  if (!uploadDir) {
-    errors.push("UPLOAD_DIR ou MOBILE_UPLOAD_DIR é obrigatório.");
-  } else if (!isAbsolute(uploadDir)) {
-    errors.push("O diretório de storage deve usar um caminho absoluto.");
+  requireValue(environment, "STORAGE_BUCKET", errors);
+  requireValue(environment, "STORAGE_REGION", errors);
+  validateBoolean(environment, "STORAGE_FORCE_PATH_STYLE", errors, true);
+  const endpointValue = valueOf(environment, "STORAGE_ENDPOINT");
+  const endpoint = endpointValue
+    ? parseUrl(endpointValue, "STORAGE_ENDPOINT", ["https:"], errors)
+    : null;
+  rejectLocalHost(endpoint, "STORAGE_ENDPOINT", errors);
+
+  const accessKey = valueOf(environment, "STORAGE_ACCESS_KEY_ID");
+  const secretKey = valueOf(environment, "STORAGE_SECRET_ACCESS_KEY");
+  if (Boolean(accessKey) !== Boolean(secretKey)) {
+    errors.push(
+      "STORAGE_ACCESS_KEY_ID e STORAGE_SECRET_ACCESS_KEY devem ser informados juntos.",
+    );
+  }
+  if (endpointValue && (!accessKey || !secretKey)) {
+    errors.push(
+      "Storage com endpoint customizado exige credenciais explícitas.",
+    );
+  }
+  if (secretKey && secretKey.length < 16) {
+    errors.push(
+      "STORAGE_SECRET_ACCESS_KEY deve possuir pelo menos 16 caracteres.",
+    );
+  }
+  const encryption = requireValue(
+    environment,
+    "STORAGE_SERVER_SIDE_ENCRYPTION",
+    errors,
+  );
+  if (!["none", "AES256", "aws:kms"].includes(encryption)) {
+    errors.push(
+      "STORAGE_SERVER_SIDE_ENCRYPTION deve ser none, AES256 ou aws:kms.",
+    );
+  }
+  const kmsKeyId = valueOf(environment, "STORAGE_KMS_KEY_ID");
+  if (encryption === "aws:kms" && !kmsKeyId) {
+    errors.push("STORAGE_KMS_KEY_ID é obrigatório ao usar aws:kms.");
+  }
+  if (kmsKeyId && encryption !== "aws:kms") {
+    errors.push("STORAGE_KMS_KEY_ID só pode ser usado com aws:kms.");
+  }
+  const ttl = Number(
+    requireValue(environment, "STORAGE_SIGNED_URL_TTL_SECONDS", errors),
+  );
+  if (!Number.isInteger(ttl) || ttl < 60 || ttl > 900) {
+    errors.push(
+      "STORAGE_SIGNED_URL_TTL_SECONDS deve estar entre 60 e 900 segundos.",
+    );
   }
 }
 
@@ -258,6 +299,10 @@ export function validateEnvironment(
     validateCors(environment, true, appWebUrl, errors);
     validateSmtp(environment, errors);
     validateStorage(environment, errors);
+    const metricsToken = requireValue(environment, "METRICS_TOKEN", errors);
+    if (metricsToken && metricsToken.length < 24) {
+      errors.push("METRICS_TOKEN deve possuir pelo menos 24 caracteres.");
+    }
 
     const swaggerEnabled = valueOf(environment, "SWAGGER_ENABLED") === "true";
     if (appEnvironment === "production" && swaggerEnabled) {

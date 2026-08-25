@@ -2,7 +2,7 @@ import {
   DomainEventType,
   NotificationChannel,
   NotificationPriority,
-} from "@prisma/client";
+} from "@prumo/database";
 
 export const COMMUNICATION_QUEUES = [
   "domain-events",
@@ -11,6 +11,7 @@ export const COMMUNICATION_QUEUES = [
   "push-notifications",
   "reminders",
   "communication-campaigns",
+  "data-migrations",
 ] as const;
 
 export type CommunicationQueueName = (typeof COMMUNICATION_QUEUES)[number];

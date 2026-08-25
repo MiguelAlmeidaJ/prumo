@@ -44,9 +44,10 @@
     "vitest": "^4.1.10"
   },
   "scripts": {
-    "dev": "expo start",
-    "start": "expo start",
-    "android": "expo start --android",
+    "dev": "expo start --lan",
+    "start": "expo start --lan",
+    "start:tunnel": "expo start --tunnel",
+    "android": "expo start --android --lan",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export --platform web",

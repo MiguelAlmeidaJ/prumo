@@ -3,7 +3,7 @@ import {
   DomainEventStatus,
   type DomainEventType,
   Prisma,
-} from "@prisma/client";
+} from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { CommunicationQueueService } from "./queue.service";
 import { safeError, stableKey } from "./communication.utils";

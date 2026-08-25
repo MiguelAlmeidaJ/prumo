@@ -9,7 +9,7 @@ import {
   NotificationDeliveryStatus,
   NotificationPriority,
   PushPlatform,
-} from "@prisma/client";
+} from "@prumo/database";
 import { Type } from "class-transformer";
 import {
   ArrayMaxSize,

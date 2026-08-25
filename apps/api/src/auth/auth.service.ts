@@ -22,7 +22,7 @@ import {
   PlatformRole,
   Prisma,
   TenantStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { compare } from "bcrypt";
 import {
   createHmac,

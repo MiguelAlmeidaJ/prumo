@@ -1,5 +1,27 @@
-import { Prisma } from "@prisma/client";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+
+const schema = readFileSync(
+  resolve(process.cwd(), "prisma/schema.prisma"),
+  "utf8",
+);
+
+function modelDefinition(modelName: string): string {
+  const match = schema.match(
+    new RegExp(`model\\s+${modelName}\\s*\\{([\\s\\S]*?)\\n\\}`),
+  );
+
+  if (!match) {
+    throw new Error(`Model ${modelName} não encontrado no schema Prisma.`);
+  }
+
+  return match[1].replace(/\s+/g, " ").trim();
+}
+
+function escaped(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 const tenantScopedModels = [
   "Membership",
@@ -55,31 +77,15 @@ const tenantScopedModels = [
 ] as const;
 
 describe.each(tenantScopedModels)("%s tenant isolation", (modelName) => {
-  const model = Prisma.dmmf.datamodel.models.find(
-    ({ name }) => name === modelName,
-  );
+  const model = modelDefinition(modelName);
 
   it("requires tenantId on the model", () => {
-    expect(model).toBeDefined();
-    expect(model?.fields).toContainEqual(
-      expect.objectContaining({
-        name: "tenantId",
-        kind: "scalar",
-        type: "String",
-        isRequired: true,
-      }),
-    );
+    expect(model).toMatch(/\btenantId\s+String(?!\?)\b/);
   });
 
   it("relates to Tenant through tenantId", () => {
-    expect(model?.fields).toContainEqual(
-      expect.objectContaining({
-        name: "tenant",
-        kind: "object",
-        type: "Tenant",
-        relationFromFields: ["tenantId"],
-        relationToFields: ["id"],
-      }),
+    expect(model).toMatch(
+      /\btenant\s+Tenant\s+@relation\(fields:\s*\[tenantId\],\s*references:\s*\[id\]/,
     );
   });
 });
@@ -94,35 +100,19 @@ describe("tenant-scoped natural identifiers", () => {
     ["StudentContract", ["tenantId", "contractNumber"]],
     ["ExpenseCategory", ["tenantId", "name"]],
   ])("scopes %s uniqueness by tenant", (modelName, fields) => {
-    const model = Prisma.dmmf.datamodel.models.find(
-      ({ name }) => name === modelName,
-    );
+    const model = modelDefinition(modelName);
+    const uniqueFields = fields.map(escaped).join("\\s*,\\s*");
 
-    expect(model?.uniqueFields).toContainEqual(fields);
+    expect(model).toMatch(new RegExp(`@@unique\\(\\[${uniqueFields}\\]`));
   });
 });
 
 describe("global authentication scope", () => {
   it("allows RefreshSession without tenant only for platform sessions", () => {
-    const model = Prisma.dmmf.datamodel.models.find(
-      ({ name }) => name === "RefreshSession",
-    );
-    expect(model?.fields).toContainEqual(
-      expect.objectContaining({
-        name: "tenantId",
-        kind: "scalar",
-        type: "String",
-        isRequired: false,
-      }),
-    );
-    expect(model?.fields).toContainEqual(
-      expect.objectContaining({
-        name: "membershipId",
-        kind: "scalar",
-        type: "String",
-        isRequired: false,
-      }),
-    );
+    const model = modelDefinition("RefreshSession");
+
+    expect(model).toMatch(/\btenantId\s+String\?/);
+    expect(model).toMatch(/\bmembershipId\s+String\?/);
   });
 });
 
@@ -155,17 +145,13 @@ describe("tenant-scoped foreign keys", () => {
   ])(
     "scopes %s.%s by tenant",
     (modelName, fieldName, relationFromFields, relatedModel) => {
-      const model = Prisma.dmmf.datamodel.models.find(
-        ({ name }) => name === modelName,
-      );
-      expect(model?.fields).toContainEqual(
-        expect.objectContaining({
-          name: fieldName,
-          kind: "object",
-          type: relatedModel,
-          relationFromFields,
-          relationToFields: ["id", "tenantId"],
-        }),
+      const model = modelDefinition(modelName);
+      const fromFields = relationFromFields.map(escaped).join("\\s*,\\s*");
+
+      expect(model).toMatch(
+        new RegExp(
+          `\\b${escaped(fieldName)}\\s+${escaped(relatedModel)}\\??\\s+@relation\\([^)]*fields:\\s*\\[${fromFields}\\][^)]*references:\\s*\\[id\\s*,\\s*tenantId\\]`,
+        ),
       );
     },
   );

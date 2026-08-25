@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/auth/auth-context";
+import { ActionMenu } from "@/components/action-menu";
 import { AppShell } from "@/components/app-shell";
 import { ApiError } from "@/lib/auth-api";
 
@@ -169,12 +170,12 @@ export function OperationalList({ kind }: { kind: Kind }) {
                       {item.active ? "Ativa" : "Inativa"}
                     </span>
                   </span>
-                  <span className="registry-actions">
+                  <ActionMenu label={`Ações de ${item.name}`}>
                     <Link href={`/${kind}/${item.id}/edit`}>Editar</Link>
                     <button type="button" onClick={() => void toggle(item)}>
                       {item.active ? "Inativar" : "Ativar"}
                     </button>
-                  </span>
+                  </ActionMenu>
                 </div>
               ))}
             </div>

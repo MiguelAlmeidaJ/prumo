@@ -9,7 +9,7 @@ import {
   LessonType,
   Prisma,
   VehicleOccurrenceStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "../schedule/audit.service";

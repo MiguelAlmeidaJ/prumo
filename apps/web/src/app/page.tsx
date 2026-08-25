@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import { useAuth } from "@/auth/auth-context";
+import { BrandLogo } from "@/components/brand-logo";
 import { hasTenantPermission } from "@/components/tenant-navigation";
 import {
   TenantMobileNavigation,
@@ -27,10 +28,10 @@ const roleLabels: Record<MembershipRole, string> = {
 function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`brand ${compact ? "brand--compact" : ""}`}>
-      <span className="brand__mark" aria-hidden="true">
-        P
-      </span>
-      <span className="brand__word">PRUMO</span>
+      <BrandLogo
+        className="brand__logo"
+        variant={compact ? "color" : "white"}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { PartialType } from "@nestjs/swagger";
-import { RegistryStatus } from "@prisma/client";
+import { RegistryStatus } from "@prumo/database";
 import { Transform } from "class-transformer";
 import {
   IsDateString,

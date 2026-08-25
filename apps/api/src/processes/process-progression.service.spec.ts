@@ -2,7 +2,7 @@ import {
   LicenseProcessType,
   ProcessStageType,
   StudentDocumentType,
-} from "@prisma/client";
+} from "@prumo/database";
 import { describe, expect, it } from "vitest";
 import { ProcessProgressionService } from "./process-progression.service";
 

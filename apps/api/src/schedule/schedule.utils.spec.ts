@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
-import { Weekday } from "@prisma/client";
+import { Weekday } from "@prumo/database";
 import { describe, expect, it } from "vitest";
 import {
   ensureSameUtcDay,

@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveAppEnvironment, validateEnvironment } from "./environment";
 
@@ -18,7 +17,15 @@ const validProductionEnvironment = () => ({
   SMTP_USER: "prumo-api",
   SMTP_PASSWORD: "smtp-pass-strong-2026",
   EMAIL_FROM: "Prumo <nao-responda@prumo.com.br>",
-  UPLOAD_DIR: resolve("var", "uploads-staging"),
+  STORAGE_REGION: "us-east-1",
+  STORAGE_BUCKET: "prumo-documents-staging",
+  STORAGE_FORCE_PATH_STYLE: "false",
+  STORAGE_SIGNED_URL_TTL_SECONDS: "300",
+  STORAGE_SERVER_SIDE_ENCRYPTION: "AES256",
+  STORAGE_ENDPOINT: "",
+  STORAGE_ACCESS_KEY_ID: "",
+  STORAGE_SECRET_ACCESS_KEY: "",
+  METRICS_TOKEN: "metrics-token-strong-2026",
   SWAGGER_ENABLED: "false",
   SWAGGER_RESTRICTED: "false",
   TRUST_PROXY: "true",
@@ -85,13 +92,23 @@ describe("validateEnvironment", () => {
     ).not.toThrow();
   });
 
-  it("exige SMTP e storage explícitos em ambiente publicado", () => {
+  it("exige SMTP e storage S3 explícitos em ambiente publicado", () => {
     const environment = validProductionEnvironment();
     environment.SMTP_HOST = "";
-    environment.UPLOAD_DIR = "relative/uploads";
+    environment.STORAGE_BUCKET = "";
 
     expect(() => validateEnvironment(environment)).toThrow(
-      /SMTP_HOST é obrigatório[\s\S]*caminho absoluto/,
+      /SMTP_HOST é obrigatório[\s\S]*STORAGE_BUCKET é obrigatório/,
+    );
+  });
+
+  it("recusa endpoint de storage inseguro ou credenciais incompletas", () => {
+    const environment = validProductionEnvironment();
+    environment.STORAGE_ENDPOINT = "http://localhost:9000";
+    environment.STORAGE_ACCESS_KEY_ID = "access-only";
+
+    expect(() => validateEnvironment(environment)).toThrow(
+      /STORAGE_ENDPOINT deve usar https:[\s\S]*devem ser informados juntos/,
     );
   });
 

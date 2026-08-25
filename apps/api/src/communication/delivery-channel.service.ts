@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import {
   NotificationChannel,
   NotificationDeliveryStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { emailHtml } from "./email-layout";
 import { EmailProvider } from "./providers/email.provider";

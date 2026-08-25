@@ -9,7 +9,7 @@ import {
   Prisma,
   ServicePlanStatus,
   StudentContractStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { PrismaService } from "../database/prisma.service";
 import { DomainEventService } from "../communication/domain-event.service";
 import { AuditService } from "../schedule/audit.service";

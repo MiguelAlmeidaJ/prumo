@@ -11,17 +11,11 @@ import {
   PlatformRole,
   SupportSessionStatus,
   TenantStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { hash } from "bcrypt";
 import type { Server } from "node:http";
 import request from "supertest";
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
 import { PrismaService } from "../src/database/prisma.service";
 
@@ -37,6 +31,7 @@ const BASE_SLUG = "platform-e2e-base";
 const FOREIGN_SLUG = "platform-e2e-foreign";
 const PROVISIONED_SLUG = "platform-e2e-provisioned";
 const PLAN_CODE = "E2E_PLATFORM";
+const COMMERCIAL_PLAN_CODES = ["E2E_COMMERCIAL", "E2E_COMMERCIAL_PLUS"];
 
 describe.sequential("Platform console (e2e)", () => {
   let app: INestApplication<Server>;
@@ -47,6 +42,9 @@ describe.sequential("Platform console (e2e)", () => {
   let ownerUserId: string;
   let seededOwnerOriginalRole: PlatformRole | null = null;
   let provisionedTenantId: string | null = null;
+  let commercialPlanId: string;
+  let commercialPlusPlanId: string;
+  let commercialSubscriptionId: string;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -95,7 +93,9 @@ describe.sequential("Platform console (e2e)", () => {
         },
       },
     });
-    await prisma.platformPlan.deleteMany({ where: { code: PLAN_CODE } });
+    await prisma.platformPlan.deleteMany({
+      where: { code: { in: [PLAN_CODE, ...COMMERCIAL_PLAN_CODES] } },
+    });
 
     const [base, foreign, plan] = await Promise.all([
       prisma.tenant.create({
@@ -183,11 +183,10 @@ describe.sequential("Platform console (e2e)", () => {
         planId: plan.id,
         status: "ACTIVE",
         billingCycle: "MANUAL",
+        contractedPriceCents: plan.monthlyPriceCents,
         startsAt: new Date(),
         currentPeriodStartsAt: new Date(),
-        currentPeriodEndsAt: new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000,
-        ),
+        currentPeriodEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
   }, 40_000);
@@ -208,18 +207,12 @@ describe.sequential("Platform console (e2e)", () => {
     if (ids.length > 0) {
       await prisma.auditLog.deleteMany({
         where: {
-          OR: [
-            { platformUserId: { in: ids } },
-            { actorUserId: { in: ids } },
-          ],
+          OR: [{ platformUserId: { in: ids } }, { actorUserId: { in: ids } }],
         },
       });
       await prisma.supportSession.deleteMany({
         where: {
-          OR: [
-            { platformUserId: { in: ids } },
-            { endedByUserId: { in: ids } },
-          ],
+          OR: [{ platformUserId: { in: ids } }, { endedByUserId: { in: ids } }],
         },
       });
       await prisma.user.deleteMany({ where: { id: { in: ids } } });
@@ -231,7 +224,9 @@ describe.sequential("Platform console (e2e)", () => {
         },
       },
     });
-    await prisma.platformPlan.deleteMany({ where: { code: PLAN_CODE } });
+    await prisma.platformPlan.deleteMany({
+      where: { code: { in: [PLAN_CODE, ...COMMERCIAL_PLAN_CODES] } },
+    });
     await app.close();
   });
 
@@ -247,6 +242,10 @@ describe.sequential("Platform console (e2e)", () => {
     const common = await login(EMAILS.common);
     await request(app.getHttpServer())
       .get("/api/platform/dashboard")
+      .set("Authorization", `Bearer ${common.accessToken}`)
+      .expect(HttpStatus.FORBIDDEN);
+    await request(app.getHttpServer())
+      .get("/api/platform/plans")
       .set("Authorization", `Bearer ${common.accessToken}`)
       .expect(HttpStatus.FORBIDDEN);
 
@@ -272,9 +271,7 @@ describe.sequential("Platform console (e2e)", () => {
       .expect(HttpStatus.OK);
     const list = response.body as { data: Array<{ id: string }> };
     expect(list.data).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: baseTenantId }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ id: baseTenantId })]),
     );
   });
 
@@ -322,9 +319,7 @@ describe.sequential("Platform console (e2e)", () => {
     expect(stored.financialSettings).toBeTruthy();
     expect(stored.notificationTemplates).toHaveLength(1);
     expect(stored.reminderRules).toHaveLength(1);
-    expect(stored.memberships[0]?.role).toBe(
-      MembershipRole.TENANT_OWNER,
-    );
+    expect(stored.memberships[0]?.role).toBe(MembershipRole.TENANT_OWNER);
     expect(stored.subscriptions).toHaveLength(1);
   });
 
@@ -409,8 +404,7 @@ describe.sequential("Platform console (e2e)", () => {
     await prisma.user.updateMany({
       where: { email: "platform@prumo.local" },
       data: {
-        platformRole:
-          seededOwnerOriginalRole ?? PlatformRole.PLATFORM_OWNER,
+        platformRole: seededOwnerOriginalRole ?? PlatformRole.PLATFORM_OWNER,
       },
     });
     seededOwnerOriginalRole = null;
@@ -485,6 +479,216 @@ describe.sequential("Platform console (e2e)", () => {
       feature: "FINANCIAL",
       enabled: true,
     });
+  });
+
+  it("restringe planos e assinaturas ao PLATFORM_OWNER", async () => {
+    const [support, admin, owner] = await Promise.all([
+      login(EMAILS.support),
+      login(EMAILS.admin),
+      login(EMAILS.owner),
+    ]);
+    for (const token of [support.accessToken, admin.accessToken]) {
+      await request(app.getHttpServer())
+        .get("/api/platform/plans")
+        .set("Authorization", `Bearer ${token}`)
+        .expect(HttpStatus.FORBIDDEN);
+      await request(app.getHttpServer())
+        .get("/api/platform/subscriptions")
+        .set("Authorization", `Bearer ${token}`)
+        .expect(HttpStatus.FORBIDDEN);
+    }
+
+    const response = await request(app.getHttpServer())
+      .post("/api/platform/plans")
+      .set("Authorization", `Bearer ${owner.accessToken}`)
+      .send({
+        code: COMMERCIAL_PLAN_CODES[0],
+        name: "Prumo Comercial E2E",
+        description: "Plano criado para validar o catálogo comercial.",
+        status: "ACTIVE",
+        featured: true,
+        displayOrder: 1,
+        defaultBillingCycle: "MONTHLY",
+        monthlyPriceCents: 44_900,
+        annualPriceCents: 480_000,
+        maxUsers: 10,
+        maxStudents: 500,
+        maxUnits: 5,
+        maxInstructors: 30,
+        maxVehicles: 20,
+        features: {
+          STUDENT_MANAGEMENT: true,
+          ENROLLMENTS: true,
+          SCHEDULE: true,
+          FINANCIAL: true,
+        },
+      })
+      .expect(HttpStatus.CREATED);
+    commercialPlanId = (response.body as { id: string }).id;
+
+    const plan = await prisma.platformPlan.findUniqueOrThrow({
+      where: { id: commercialPlanId },
+    });
+    expect(plan).toMatchObject({
+      featured: true,
+      monthlyPriceCents: 44_900,
+      maxInstructors: 30,
+      maxVehicles: 20,
+    });
+  });
+
+  it("cria assinatura amigável e preserva o valor contratado", async () => {
+    const owner = await login(EMAILS.owner);
+    const auth = `Bearer ${owner.accessToken}`;
+    const startsAt = "2026-08-01T00:00:00.000Z";
+    const response = await request(app.getHttpServer())
+      .post("/api/platform/subscriptions")
+      .set("Authorization", auth)
+      .send({
+        tenantId: foreignTenantId,
+        planId: commercialPlanId,
+        status: "ACTIVE",
+        billingCycle: "MONTHLY",
+        contractedPriceCents: 39_900,
+        startsAt,
+        contractNumber: "E2E-2026-001",
+        notes: "Condição comercial negociada.",
+      })
+      .expect(HttpStatus.CREATED);
+    commercialSubscriptionId = (response.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .patch(`/api/platform/plans/${commercialPlanId}`)
+      .set("Authorization", auth)
+      .send({ monthlyPriceCents: 59_900, description: "Plano editado." })
+      .expect(HttpStatus.OK);
+
+    const stored = await prisma.tenantSubscription.findUniqueOrThrow({
+      where: { id: commercialSubscriptionId },
+    });
+    expect(stored.contractedPriceCents).toBe(39_900);
+
+    const filtered = await request(app.getHttpServer())
+      .get("/api/platform/subscriptions")
+      .query({
+        search: "Foreign",
+        planId: commercialPlanId,
+        status: "ACTIVE",
+        billingCycle: "MONTHLY",
+      })
+      .set("Authorization", auth)
+      .expect(HttpStatus.OK);
+    expect(
+      (filtered.body as { data: Array<{ id: string }> }).data.map(
+        ({ id }) => id,
+      ),
+    ).toContain(commercialSubscriptionId);
+  });
+
+  it("altera plano e valor sem perder o histórico anterior", async () => {
+    const owner = await login(EMAILS.owner);
+    const auth = `Bearer ${owner.accessToken}`;
+    const createdPlan = await request(app.getHttpServer())
+      .post("/api/platform/plans")
+      .set("Authorization", auth)
+      .send({
+        code: COMMERCIAL_PLAN_CODES[1],
+        name: "Prumo Comercial Plus E2E",
+        status: "ACTIVE",
+        monthlyPriceCents: 69_900,
+        features: { ADVANCED_REPORTS: true, MULTI_UNIT: true },
+      })
+      .expect(HttpStatus.CREATED);
+    commercialPlusPlanId = (createdPlan.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .patch(`/api/platform/subscriptions/${commercialSubscriptionId}`)
+      .set("Authorization", auth)
+      .send({
+        planId: commercialPlusPlanId,
+        contractedPriceCents: 62_900,
+        billingCycle: "MONTHLY",
+        endsAt: "2027-07-31T23:59:59.999Z",
+      })
+      .expect(HttpStatus.OK);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/platform/subscriptions/${commercialSubscriptionId}`)
+      .set("Authorization", auth)
+      .expect(HttpStatus.OK);
+    const body = detail.body as {
+      plan: { id: string };
+      contractedPriceCents: number;
+      history: Array<{ action: string; before: unknown; after: unknown }>;
+    };
+    expect(body.plan.id).toBe(commercialPlusPlanId);
+    expect(body.contractedPriceCents).toBe(62_900);
+    const planChange = body.history.find(
+      ({ action }) => action === "PLATFORM_SUBSCRIPTION_PLAN_CHANGED",
+    );
+    expect(planChange?.before).toMatchObject({ planId: commercialPlanId });
+    expect(planChange?.after).toMatchObject({ planId: commercialPlusPlanId });
+    expect(
+      body.history.some(
+        ({ action }) => action === "PLATFORM_SUBSCRIPTION_CREATED",
+      ),
+    ).toBe(true);
+  });
+
+  it("desativa plano sem alterar o contrato e controla o ciclo da assinatura", async () => {
+    const owner = await login(EMAILS.owner);
+    const auth = `Bearer ${owner.accessToken}`;
+    await request(app.getHttpServer())
+      .patch(`/api/platform/plans/${commercialPlusPlanId}`)
+      .set("Authorization", auth)
+      .send({ status: "INACTIVE" })
+      .expect(HttpStatus.OK);
+
+    const beforeActions = await prisma.tenantSubscription.findUniqueOrThrow({
+      where: { id: commercialSubscriptionId },
+    });
+    expect(beforeActions).toMatchObject({
+      status: "ACTIVE",
+      contractedPriceCents: 62_900,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/platform/subscriptions/${commercialSubscriptionId}/suspend`)
+      .set("Authorization", auth)
+      .send({ reason: "Pausa comercial solicitada." })
+      .expect(HttpStatus.CREATED);
+    await request(app.getHttpServer())
+      .post(
+        `/api/platform/subscriptions/${commercialSubscriptionId}/reactivate`,
+      )
+      .set("Authorization", auth)
+      .send({ reason: "Contrato retomado." })
+      .expect(HttpStatus.CREATED);
+    await request(app.getHttpServer())
+      .post(`/api/platform/subscriptions/${commercialSubscriptionId}/cancel`)
+      .set("Authorization", auth)
+      .send({ reason: "Encerramento contratual confirmado." })
+      .expect(HttpStatus.CREATED);
+
+    const cancelled = await prisma.tenantSubscription.findUniqueOrThrow({
+      where: { id: commercialSubscriptionId },
+    });
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.cancelledAt).toBeTruthy();
+    const actions = await prisma.auditLog.findMany({
+      where: {
+        entityType: "TenantSubscription",
+        entityId: commercialSubscriptionId,
+      },
+      select: { action: true },
+    });
+    expect(actions.map(({ action }) => action)).toEqual(
+      expect.arrayContaining([
+        "PLATFORM_SUBSCRIPTION_SUSPENDED",
+        "PLATFORM_SUBSCRIPTION_REACTIVATED",
+        "PLATFORM_SUBSCRIPTION_CANCELLED",
+      ]),
+    );
   });
 
   it("omite hashes, tokens e segredos da gestão de usuários", async () => {

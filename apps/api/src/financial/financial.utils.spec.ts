@@ -1,4 +1,4 @@
-import { ContractAdjustmentType, ReceivableStatus } from "@prisma/client";
+import { ContractAdjustmentType, ReceivableStatus } from "@prumo/database";
 import { describe, expect, it } from "vitest";
 import {
   adjustmentDelta,

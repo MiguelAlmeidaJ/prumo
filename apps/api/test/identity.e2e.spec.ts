@@ -16,7 +16,7 @@ import {
   MembershipRole,
   TenantStatus,
   UserCredentialTokenType,
-} from "@prisma/client";
+} from "@prumo/database";
 import { hash } from "bcrypt";
 import { createHash } from "node:crypto";
 import type { Server } from "node:http";

@@ -11,9 +11,11 @@ import {
 export class ExpoPushProvider extends PushProvider {
   readonly name = "expo";
   private readonly expo: Expo;
+  private readonly testMode: boolean;
 
   constructor(config: ConfigService) {
     super();
+    this.testMode = config.get<string>("APP_ENV") === "test";
     this.expo = new Expo({
       accessToken: config.get<string>("EXPO_ACCESS_TOKEN") || undefined,
     });
@@ -22,6 +24,9 @@ export class ExpoPushProvider extends PushProvider {
   async send(input: SendPushInput): Promise<SendPushResult> {
     if (!Expo.isExpoPushToken(input.token)) {
       return { invalidToken: true };
+    }
+    if (this.testMode) {
+      return { providerMessageId: "test-expo-ticket", invalidToken: false };
     }
     const [ticket] = await this.expo.sendPushNotificationsAsync([
       {

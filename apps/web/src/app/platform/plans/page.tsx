@@ -1,5 +1,5 @@
-import { PlatformConsole } from "@/platform/platform-console";
+import { PlanCatalog } from "@/platform/plan-commercial-console";
 
 export default function Page() {
-  return <PlatformConsole view="plans" />;
+  return <PlanCatalog />;
 }

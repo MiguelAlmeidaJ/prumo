@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src";
 import { runReferenceSeed } from "./seed/reference";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 runReferenceSeed(prisma)
   .then(() => console.log("Seed de referência concluído."))

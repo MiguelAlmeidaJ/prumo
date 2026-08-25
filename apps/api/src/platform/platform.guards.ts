@@ -13,7 +13,7 @@ import { Reflector } from "@nestjs/core";
 import {
   PlatformRole as PrismaPlatformRole,
   SupportSessionStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import type { AuthenticatedRequest } from "../auth/auth.types";
 import { PrismaService } from "../database/prisma.service";
 import {

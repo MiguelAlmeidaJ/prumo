@@ -8,7 +8,7 @@ import {
   LessonStatus,
   LessonType,
   Prisma,
-} from "@prisma/client";
+} from "@prumo/database";
 import type { Permission } from "@prumo/contracts";
 import { nullable } from "../common/registration.utils";
 import { PrismaService } from "../database/prisma.service";

@@ -1,5 +1,5 @@
 import { ForbiddenException } from "@nestjs/common";
-import { MembershipRole, MobileOperationStatus } from "@prisma/client";
+import { MembershipRole, MobileOperationStatus } from "@prumo/database";
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { MobileAccessService } from "./mobile-access.service";

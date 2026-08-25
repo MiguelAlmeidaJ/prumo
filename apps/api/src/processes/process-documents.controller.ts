@@ -72,10 +72,11 @@ export class ProcessDocumentsController {
   @ApiOperation({ summary: "Obtém o arquivo vinculado para visualização." })
   file(
     @CurrentTenant() tenant: CurrentTenantContext,
+    @CurrentUser() user: AuthenticatedUser,
     @Param("processId", ParseUUIDPipe) processId: string,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    return this.service.file(tenant.id, processId, id);
+    return this.service.file(tenant.id, user.id, processId, id);
   }
 
   @Post(":id/submit")

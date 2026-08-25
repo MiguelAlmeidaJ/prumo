@@ -8,7 +8,7 @@ import {
   MembershipRole,
   NotificationChannel,
   TenantStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import type { AuthResponse } from "@prumo/contracts";
 import { hash } from "bcrypt";
 import type { Server } from "node:http";

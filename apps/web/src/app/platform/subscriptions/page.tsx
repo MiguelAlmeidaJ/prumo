@@ -1,5 +1,5 @@
-import { PlatformConsole } from "@/platform/platform-console";
+import { SubscriptionCatalog } from "@/platform/subscription-commercial-console";
 
 export default function Page() {
-  return <PlatformConsole view="subscriptions" />;
+  return <SubscriptionCatalog />;
 }

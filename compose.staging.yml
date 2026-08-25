@@ -1,0 +1,76 @@
+services:
+  api:
+    image: ${PRUMO_API_IMAGE:-prumo-api:staging}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1.0
+    ports:
+      - "${API_PORT_EXTERNAL:-3333}:3333"
+    environment:
+      NODE_ENV: production
+      APP_ENV: staging
+      API_PORT: 3333
+      NODE_OPTIONS: --max-old-space-size=384
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL obrigatoria}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL obrigatoria}
+      QUEUE_ENABLED: ${QUEUE_ENABLED:-true}
+      QUEUE_MAX_ATTEMPTS: ${QUEUE_MAX_ATTEMPTS:-5}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET obrigatoria}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET obrigatoria}
+      APP_WEB_URL: ${APP_WEB_URL:?APP_WEB_URL obrigatoria}
+      API_URL: ${API_URL:?API_URL obrigatoria}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS obrigatoria}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST obrigatoria}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER obrigatoria}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD obrigatoria}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM obrigatoria}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_REGION: ${STORAGE_REGION:?STORAGE_REGION obrigatoria}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?STORAGE_BUCKET obrigatoria}
+      STORAGE_FORCE_PATH_STYLE: ${STORAGE_FORCE_PATH_STYLE:-false}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+      STORAGE_SIGNED_URL_TTL_SECONDS: ${STORAGE_SIGNED_URL_TTL_SECONDS:-300}
+      STORAGE_SERVER_SIDE_ENCRYPTION: ${STORAGE_SERVER_SIDE_ENCRYPTION:-none}
+      STORAGE_KMS_KEY_ID: ${STORAGE_KMS_KEY_ID:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN obrigatorio}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      SWAGGER_RESTRICTED: ${SWAGGER_RESTRICTED:-false}
+
+  web:
+    image: ${PRUMO_WEB_IMAGE:-prumo-web:staging}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL obrigatoria}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+      - /app/apps/web/.next/cache:size=64m,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    cpus: 0.75
+    ports:
+      - "${WEB_PORT_EXTERNAL:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NODE_OPTIONS: --max-old-space-size=256
+      API_URL: ${API_URL_INTERNAL:?API_URL_INTERNAL obrigatoria}

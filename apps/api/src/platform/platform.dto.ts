@@ -2,6 +2,7 @@ import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
   IsBoolean,
+  IsDateString,
   IsEmail,
   IsEnum,
   IsInt,
@@ -23,7 +24,7 @@ import {
   SupportSessionStatus,
   TenantStatus,
   TenantSubscriptionStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 
 export class PlatformPaginationDto {
   @IsOptional()
@@ -231,6 +232,10 @@ export class EndSupportSessionDto {
 
 export class PlanListQueryDto extends PlatformPaginationDto {
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
   @IsEnum(PlatformPlanStatus)
   status?: PlatformPlanStatus;
 }
@@ -252,6 +257,21 @@ export class CreatePlatformPlanDto {
   @IsOptional()
   @IsEnum(PlatformPlanStatus)
   status?: PlatformPlanStatus;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  featured?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  displayOrder?: number;
+
+  @IsOptional()
+  @IsEnum(BillingCycle)
+  defaultBillingCycle?: BillingCycle;
 
   @Type(() => Number)
   @IsInt()
@@ -286,6 +306,18 @@ export class CreatePlatformPlanDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  maxInstructors?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxVehicles?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   maxStorageBytes?: number;
 
   @IsObject()
@@ -308,6 +340,21 @@ export class UpdatePlatformPlanDto {
   status?: PlatformPlanStatus;
 
   @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  featured?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  displayOrder?: number;
+
+  @IsOptional()
+  @IsEnum(BillingCycle)
+  defaultBillingCycle?: BillingCycle;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -323,25 +370,37 @@ export class UpdatePlatformPlanDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  maxUsers?: number;
+  maxUsers?: number | null;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  maxStudents?: number;
+  maxStudents?: number | null;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  maxUnits?: number;
+  maxUnits?: number | null;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  maxStorageBytes?: number;
+  maxInstructors?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxVehicles?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxStorageBytes?: number | null;
 
   @IsOptional()
   @IsObject()
@@ -354,8 +413,20 @@ export class SubscriptionListQueryDto extends PlatformPaginationDto {
   tenantId?: string;
 
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsUUID()
+  planId?: string;
+
+  @IsOptional()
   @IsEnum(TenantSubscriptionStatus)
   status?: TenantSubscriptionStatus;
+
+  @IsOptional()
+  @IsEnum(BillingCycle)
+  billingCycle?: BillingCycle;
 }
 
 export class CreateSubscriptionDto {
@@ -365,24 +436,46 @@ export class CreateSubscriptionDto {
   @IsUUID()
   planId!: string;
 
+  @IsOptional()
   @IsEnum(TenantSubscriptionStatus)
-  status!: TenantSubscriptionStatus;
+  status?: TenantSubscriptionStatus;
 
   @IsEnum(BillingCycle)
   billingCycle!: BillingCycle;
 
-  @IsString()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  contractedPriceCents!: number;
+
+  @IsDateString()
   startsAt!: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
+  endsAt?: string;
+
+  @IsOptional()
+  @IsDateString()
   trialEndsAt?: string;
 
-  @IsString()
-  currentPeriodStartsAt!: string;
+  @IsOptional()
+  @IsDateString()
+  currentPeriodStartsAt?: string;
 
+  @IsOptional()
+  @IsDateString()
+  currentPeriodEndsAt?: string;
+
+  @IsOptional()
   @IsString()
-  currentPeriodEndsAt!: string;
+  @Length(1, 100)
+  contractNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 2000)
+  notes?: string;
 }
 
 export class UpdateSubscriptionDto {
@@ -399,12 +492,43 @@ export class UpdateSubscriptionDto {
   billingCycle?: BillingCycle;
 
   @IsOptional()
-  @IsString()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  contractedPriceCents?: number;
+
+  @IsOptional()
+  @IsDateString()
+  startsAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endsAt?: string | null;
+
+  @IsOptional()
+  @IsDateString()
   currentPeriodStartsAt?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   currentPeriodEndsAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  contractNumber?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 2000)
+  notes?: string | null;
+}
+
+export class SubscriptionActionDto {
+  @IsOptional()
+  @IsString()
+  @Length(3, 500)
+  reason?: string;
 }
 
 export class AuditQueryDto extends PlatformPaginationDto {

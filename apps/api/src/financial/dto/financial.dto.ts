@@ -9,7 +9,7 @@ import {
   ReceivableStatus,
   ServicePlanStatus,
   StudentContractStatus,
-} from "@prisma/client";
+} from "@prumo/database";
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import {

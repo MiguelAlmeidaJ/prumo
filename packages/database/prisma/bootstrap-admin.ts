@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src";
 import { bootstrapAdmin } from "./seed/bootstrap-admin";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 bootstrapAdmin(prisma)
   .then((result) => {

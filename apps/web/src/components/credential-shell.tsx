@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { PropsWithChildren } from "react";
 
+import { BrandLogo } from "./brand-logo";
+
 export function CredentialShell({
   title,
   description,
@@ -10,8 +12,7 @@ export function CredentialShell({
     <main className="credential-page">
       <section className="credential-card">
         <Link className="credential-brand" href="/" aria-label="Prumo">
-          <span aria-hidden="true">P</span>
-          PRUMO
+          <BrandLogo alt="" className="credential-brand__logo" />
         </Link>
         <div className="credential-card__heading">
           <span className="eyebrow">Acesso seguro</span>
